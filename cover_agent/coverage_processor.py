@@ -3,6 +3,7 @@ import json
 import os
 import re
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from typing import List, Optional, Tuple, Union
 
@@ -16,6 +17,7 @@ class CoverageProcessor:
         file_path: str,
         src_file_path: str,
         coverage_type: CoverageType,
+        test_command_dir: str = os.getcwd(),
         use_report_coverage_feature_flag: bool = False,
         diff_coverage_report_path: str = None,
         logger: Optional[CustomLogger] = None,
@@ -41,6 +43,7 @@ class CoverageProcessor:
             None
         """
         self.file_path = file_path
+        self.test_command_dir = test_command_dir
         self.src_file_path = src_file_path
         self.coverage_type = coverage_type
         self.logger = logger or CustomLogger.get_logger(__name__, generate_log_files=generate_log_files)
@@ -71,7 +74,12 @@ class CoverageProcessor:
         Raises:
             AssertionError: If the coverage report does not exist or was not updated after the test command.
         """
-        assert os.path.exists(self.file_path), f'Fatal: Coverage report "{self.file_path}" was not generated.'
+        # print(Path(self.test_command_dir))
+        # print(Path(self.file_path))
+        # print(Path(self.test_command_dir).resolve())
+        # print(Path(self.file_path).resolve())
+        # print("path is ", Path(self.test_command_dir) / Path(self.file_path))
+        assert os.path.exists(Path(self.test_command_dir) / Path(self.file_path)), f'Fatal: Coverage report "{self.file_path}" was not generated.'
 
         # Convert file modification time to milliseconds for comparison
         file_mod_time_ms = int(round(os.path.getmtime(self.file_path) * 1000))

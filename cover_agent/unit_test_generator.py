@@ -6,6 +6,7 @@ from typing import Optional
 from cover_agent.agent_completion_abc import AgentCompletionABC
 from cover_agent.custom_logger import CustomLogger
 from cover_agent.file_preprocessor import FilePreprocessor
+from cover_agent.unit_test_validator import UnitTestValidator
 from cover_agent.settings.config_loader import get_settings
 from cover_agent.utils import load_yaml
 
@@ -21,12 +22,14 @@ class UnitTestGenerator:
         agent_completion: AgentCompletionABC,
         test_command_dir: str = os.getcwd(),
         included_files: list = None,
+        all_included_files: list = None,
         coverage_type="cobertura",
         additional_instructions: str = "",
         use_report_coverage_feature_flag: bool = False,
         project_root: str = "",
         logger: Optional[CustomLogger] = None,
         generate_log_files: bool = True,
+        task_id: int = None,
     ):
         """
         Initialize the UnitTestGenerator class with the provided parameters.
@@ -49,6 +52,7 @@ class UnitTestGenerator:
                                                                file other than the source file. Defaults to False.
             logger (CustomLogger, optional): The logger object for logging messages.
             generate_log_files (bool): Whether or not to generate logs.
+            task_id (int): The id of the current task when using full repo mode, use for debugging. Defaults to 0.
 
         Returns:
             None
@@ -60,7 +64,7 @@ class UnitTestGenerator:
         self.code_coverage_report_path = code_coverage_report_path
         self.test_command = test_command
         self.test_command_dir = test_command_dir
-        self.included_files = included_files
+        self.included_files = UnitTestValidator.get_included_files(all_included_files)
         self.coverage_type = coverage_type
         self.additional_instructions = additional_instructions
         self.language = self.get_code_language(source_file_path)
@@ -71,7 +75,7 @@ class UnitTestGenerator:
         self.generate_log_files = generate_log_files
 
         # Get the logger instance from CustomLogger
-        self.logger = logger or CustomLogger.get_logger(__name__, generate_log_files=self.generate_log_files)
+        self.logger = logger or CustomLogger.get_logger(__name__, task_id, os.path.basename(test_file_path), generate_log_files=self.generate_log_files)
 
         # States to maintain within this class
         self.preprocessor = FilePreprocessor(self.test_file_path)
@@ -155,7 +159,7 @@ class UnitTestGenerator:
 
         return failed_test_runs_value
 
-    def generate_tests(self, failed_test_runs, language, testing_framework, code_coverage_report):
+    async def generate_tests(self, failed_test_runs, language, testing_framework, code_coverage_report):
         """
         Generate tests using the AI model based on the constructed prompt.
 
@@ -176,7 +180,7 @@ class UnitTestGenerator:
         failed_test_runs_value = self.check_for_failed_test_runs(failed_test_runs)
 
         max_tests_per_run = get_settings().get("default").get("max_tests_per_run", 4)
-        response, prompt_token_count, response_token_count, self.prompt = self.agent_completion.generate_tests(
+        response, prompt_token_count, response_token_count, self.prompt = await self.agent_completion.generate_tests(
             source_file_name=os.path.relpath(self.source_file_path, self.project_root),
             max_tests=max_tests_per_run,
             source_file_numbered="\n".join(f"{i + 1} {line}" for i, line in enumerate(self.source_code.split("\n"))),

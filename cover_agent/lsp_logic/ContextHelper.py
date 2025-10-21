@@ -2,11 +2,12 @@ from argparse import Namespace
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator, List, Tuple, Optional
-from cover_agent.AICaller import AICaller
+from cover_agent.ai_caller import AICaller
 from cover_agent.lsp_logic.utils.utils_context import (
     analyze_context,
     find_test_file_context,
     initialize_language_server,
+    find_all_context,
 )
 from cover_agent.lsp_logic.multilspy import LanguageServer
 
@@ -31,6 +32,15 @@ class ContextHelper:
         context_files = await find_test_file_context(self._args, self._lsp, test_file)
         return context_files
 
+    async def find_all_context(self, file: Path) -> list[tuple[str, str, str, int, int]]:
+        if not self._lsp:
+            raise ValueError(
+                "Language server not initialized. Please call start_server() first."
+            )
+        context_files = await find_all_context(self._args, self._lsp, file)
+        return context_files
+
+
     async def analyze_context(
         self,
         test_file: Path,
@@ -41,7 +51,7 @@ class ContextHelper:
             raise ValueError(
                 "Language server not initialized. Please call start_server() first."
             )
-        source_file, context_files_include = await analyze_context(
+        source_file, context_files_include, context_input_token, context_output_token = await analyze_context(
             test_file, context_files, self._args, ai_caller
         )
-        return source_file, context_files_include
+        return source_file, context_files_include, context_input_token, context_output_token

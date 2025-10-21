@@ -1,11 +1,15 @@
+import asyncio
 import datetime
 import os
 import time
 
 from functools import wraps
+from pathlib import Path
 from typing import Optional
+import nest_asyncio
 
 import litellm
+from claude_code_sdk import ClaudeCodeOptions, query, AssistantMessage, TextBlock
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 from wandb.sdk.data_types.trace_tree import Trace
@@ -46,6 +50,8 @@ class AICaller:
         record_replay_manager: Optional[RecordReplayManager] = None,
         logger: Optional[CustomLogger] = None,
         generate_log_files: bool = True,
+        claude_code: bool = False,
+        task_id: int = None,
     ):
         """
         Initializes an instance of the AICaller class.
@@ -54,6 +60,10 @@ class AICaller:
             model (str): The name of the model to be used.
             api_base (str): The base API URL to use in case the model is set to Ollama or Hugging Face.
         """
+        # litellm._turn_on_debug()
+        # Apply nest_asyncio to allow nested event loops
+        nest_asyncio.apply()
+        self.claude_code = claude_code
         self.model = model
         self.api_base = api_base
         self.enable_retry = enable_retry
@@ -64,10 +74,11 @@ class AICaller:
         self.record_replay_manager = record_replay_manager or RecordReplayManager(
             record_mode=record_mode, generate_log_files=generate_log_files
         )
-        self.logger = logger or CustomLogger.get_logger(__name__, generate_log_files=generate_log_files)
+        caller_name = get_original_caller()
+        self.logger = logger or CustomLogger.get_logger(f"{__name__} - {caller_name}", task_id, os.path.basename(test_file) if test_file else None, generate_log_files=generate_log_files)
 
     @conditional_retry  # You can access self.enable_retry here
-    def call_model(self, prompt: dict, stream=True):
+    async def call_model(self, prompt: dict, stream=False):
         """
         Call the language model with the provided prompt and retrieve the response.
 
@@ -82,6 +93,11 @@ class AICaller:
 
         if "system" not in prompt or "user" not in prompt:
             raise KeyError("The prompt dictionary must contain 'system' and 'user' keys.")
+        
+        # Check if we should use Claude Code
+        if self.claude_code:
+            return asyncio.run(self._call_claude_code(prompt, caller_name))
+        
         if prompt["system"] == "":
             messages = [{"role": "user", "content": prompt["user"]}]
         else:
@@ -119,11 +135,12 @@ class AICaller:
 
         # API base exception for OpenAI Compatible, Ollama, and Hugging Face models
         if "ollama" in self.model or "huggingface" in self.model or self.model.startswith("openai/"):
+            print(f"model: {self.model}, api_base: {self.api_base}")
             completion_params["api_base"] = self.api_base
 
         try:
-            self.logger.info(f"📣 Calling LLM from {caller_name}()...")
-            response = litellm.completion(**completion_params)
+            self.logger.info(f"📣 Calling LLM from {caller_name}() with prompt \n\n\n {prompt['user']}")
+            response = await litellm.acompletion(**completion_params)
         except Exception as e:
             self.logger.error(f"Error calling LLM model: {e}")
             raise e
@@ -132,11 +149,11 @@ class AICaller:
             chunks = []
             self.logger.info("Streaming results from LLM model...")
             try:
-                for chunk in response:
+                async for chunk in response:
                     print(chunk.choices[0].delta.content or "", end="", flush=True)
                     chunks.append(chunk)
                     # Optional: Delay to simulate more 'natural' response pacing
-                    time.sleep(0.01)
+                    await asyncio.sleep(0.01)
 
             except Exception as e:
                 self.logger.error(f"Error calling LLM model during streaming: {e}")
@@ -152,11 +169,11 @@ class AICaller:
         else:
             # Non-streaming response is a CompletionResponse object
             content = response.choices[0].message.content
-            self.logger.info("Printing results from LLM model...")
-            print(content)
             usage = response.usage
             prompt_tokens = int(usage.prompt_tokens)
             completion_tokens = int(usage.completion_tokens)
+            self.logger.info(f"Printing results from LLM model... \n {content}")
+            self.logger.info(f"Printed results costed: {prompt_tokens} - {completion_tokens}")
 
         if "WANDB_API_KEY" in os.environ:
             try:
@@ -186,3 +203,103 @@ class AICaller:
 
         # Returns: Response, Prompt token count, and Completion token count
         return content, prompt_tokens, completion_tokens
+
+    async def _call_claude_code(self, prompt: dict, caller_name: str):
+        """
+        Call Claude Code SDK for code-specific tasks.
+        """
+        try:
+            self.logger.info(f"📣 Calling Claude Code from {caller_name}()...")
+            
+            # Prepare options for Claude Code
+            options = ClaudeCodeOptions(
+                max_turns=20,
+                system_prompt=prompt["system"],
+                cwd=Path(self.source_file).parent if self.source_file else Path.cwd(),
+                allowed_tools=["Read", "GrepTool", "Bash", "GlobTool"],
+                permission_mode="acceptEdits"
+            )
+            
+            # Collect all responses
+            responses = []
+            
+            async def collect_responses():
+                async for message in query(prompt=prompt["user"], options=options):
+                    if isinstance(message, AssistantMessage):
+                        for block in message.content:
+                            if isinstance(block, TextBlock):
+                                responses.append(block.text)
+            
+            # Run the async function
+            await collect_responses()
+            
+            # Combine all responses
+            content = "\n".join(responses)
+            print("claude content: " + content)
+            # Estimate tokens (Claude Code doesn't provide exact counts)
+            prompt_tokens = len(prompt["system"] + prompt["user"]) // 4
+            completion_tokens = len(content) // 4
+            
+        except Exception as e:
+            self.logger.error(f"Error calling Claude Code: {e}")
+            # Fallback to regular litellm if Claude Code fails
+            self.logger.info("Falling back to regular litellm completion...")
+            return self._call_litellm_claude(prompt, caller_name)
+        
+        # Log and record as needed
+        if "WANDB_API_KEY" in os.environ:
+            try:
+                root_span = Trace(
+                    name="inference_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                    kind="llm",
+                    inputs={
+                        "user_prompt": prompt["user"],
+                        "system_prompt": prompt["system"],
+                    },
+                    outputs={"model_response": content},
+                )
+                root_span.log(name="inference")
+            except Exception as e:
+                self.logger.error(f"Error logging to W&B: {e}")
+
+        if self.record_mode and self.source_file and self.test_file:
+            self.record_replay_manager.record_response(
+                self.source_file,
+                self.test_file,
+                prompt,
+                content,
+                prompt_tokens,
+                completion_tokens,
+                caller_name,
+            )
+
+        return content, prompt_tokens, completion_tokens
+    
+    def _call_litellm_claude(self, prompt: dict, caller_name: str):
+        """
+        Fallback method to call Claude using litellm.
+        """
+        messages = [
+            {"role": "system", "content": prompt["system"]},
+            {"role": "user", "content": prompt["user"]},
+        ] if prompt["system"] else [{"role": "user", "content": prompt["user"]}]
+        
+        completion_params = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "temperature": 0.2,
+            "max_tokens": self.max_tokens,
+        }
+        
+        try:
+            response = litellm.completion(**completion_params)
+            content = response.choices[0].message.content
+            self.logger.info("Printing results from LLM model...")
+            print(content)
+            prompt_tokens = int(response.usage.prompt_tokens)
+            completion_tokens = int(response.usage.completion_tokens)
+            return content, prompt_tokens, completion_tokens
+        except Exception as e:
+            self.logger.error(f"Error in fallback litellm call: {e}")
+            raise e

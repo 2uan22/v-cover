@@ -1,14 +1,13 @@
 """
 Multilspy logger module.
 """
-
 import inspect
+import json
 import logging
 from datetime import datetime
-from pydantic import BaseModel
+from typing_extensions import TypedDict
 
-
-class LogLine(BaseModel):
+class LogLine(TypedDict):
     """
     Represents a line in the Multilspy log
     """
@@ -20,7 +19,6 @@ class LogLine(BaseModel):
     caller_line: int
     message: str
 
-
 class MultilspyLogger:
     """
     Logger class
@@ -30,17 +28,13 @@ class MultilspyLogger:
         self.logger = logging.getLogger("multilspy")
         self.logger.setLevel(logging.INFO)
 
-    def log(
-        self, debug_message: str, level: int, sanitized_error_message: str = ""
-    ) -> None:
+    def log(self, debug_message: str, level: int, sanitized_error_message: str = "") -> None:
         """
         Log the debug and santized messages using the logger
         """
 
         debug_message = debug_message.replace("'", '"').replace("\n", " ")
-        sanitized_error_message = sanitized_error_message.replace("'", '"').replace(
-            "\n", " "
-        )
+        sanitized_error_message = sanitized_error_message.replace("'", '"').replace("\n", " ")
 
         # Collect details about the callee
         curframe = inspect.currentframe()
@@ -56,10 +50,10 @@ class MultilspyLogger:
             caller_file=caller_file,
             caller_name=caller_name,
             caller_line=caller_line,
-            message=debug_message,
+            message=debug_message
         )
 
         self.logger.log(
             level=level,
-            msg=debug_log_line.json(),
+            msg=json.dumps(debug_log_line),
         )

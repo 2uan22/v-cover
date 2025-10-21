@@ -67,6 +67,7 @@ class CoverAgentConfig:
     test_command: str
     test_command_dir: str
     included_files: list[str] | None
+    all_included_files: list[dict] | None
     coverage_type: CoverageType
     report_filepath: str
     desired_coverage: int
@@ -110,6 +111,7 @@ class CoverAgentConfig:
             test_command=args.test_command,
             test_command_dir=args.test_command_dir,
             included_files=args.included_files,
+            all_included_files=args.all_included_files,
             coverage_type=args.coverage_type,
             report_filepath=args.report_filepath,
             desired_coverage=args.desired_coverage,
@@ -156,6 +158,7 @@ class CoverAgentConfig:
             "test_command": default_config.get("test_command"),
             "test_command_dir": default_config.get("test_command_dir"),
             "included_files": default_config.get("included_files"),
+            "all_included_files": default_config.get("included_files"),
             "coverage_type": default_config.get("coverage_type"),
             "report_filepath": default_config.get("report_filepath"),
             "desired_coverage": default_config.get("desired_coverage"),

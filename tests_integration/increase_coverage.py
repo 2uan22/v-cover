@@ -5,14 +5,14 @@ import sys
 # Add the parent directory to the sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from cover_agent.cover_agent import CoverAgent
+from cover_agent.cover_agent_ import CoverAgent
 
 
 # List of source/test files to iterate over:
 SOURCE_TEST_FILE_LIST = [
     # ["cover_agent/agent_completion_abc.py", "tests/test_agent_completion_abc.py"],
     # ["cover_agent/ai_caller.py", "tests/test_ai_caller.py"],
-    # ["cover_agent/cover_agent.py", "tests/test_cover_agent.py"],
+    # ["cover_agent/cover_agent_.py", "tests/test_cover_agent.py"],
     ["cover_agent/coverage_processor.py", "tests/test_coverage_processor.py"],
     # ["cover_agent/custom_logger.py", ""],
     # ["cover_agent/default_agent_completion.py", "tests/test_default_agent_completion.py"],

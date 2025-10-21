@@ -4,7 +4,8 @@ import logging
 import os
 import re
 
-from typing import List
+from typing import List, Union
+from pathlib import Path
 
 import yaml
 
@@ -139,6 +140,42 @@ def try_fix_yaml(response_text: str, keys_fix_yaml: List[str] = []) -> dict:
     except:
         pass
 
+def get_included_files_content_in_ranges(included_files: list, project_root: str = "", disable_tokens=False) -> str:
+    if included_files:
+        included_files_content = []
+        file_names_rel = []
+        for file_path, file_symbol, file_start_line, file_end_line in included_files:
+            try:
+                with open(file_path, "r") as file:
+                    # print("=====================")
+                    # print(file_path)
+                    content = '\n'.join(file.read().split('\n')[file_start_line:file_end_line+1])
+                    # print(content)
+                    included_files_content.append(content)
+                    file_path_rel = os.path.relpath(file_path, project_root) if project_root else file_path
+                    file_names_rel.append(file_path_rel)
+            except IOError as e:
+                print(f"Error reading file {file_path}: {str(e)}")
+        out_str = ""
+        if included_files_content:
+            for i, content in enumerate(included_files_content):
+                out_str += f"file_path: `{file_names_rel[i]}`\ncontent:\n```\n{content}\n```\n\n\n"
+
+        out_str = out_str.strip()
+        if not disable_tokens and get_settings().get("include_files.limit_tokens", False):
+            encoder = TokenEncoder.get_token_encoder()
+            num_input_tokens = len(encoder.encode(out_str))
+            if num_input_tokens > get_settings().get("include_files.max_tokens"):
+                print(
+                    f"Clipping included files content from {num_input_tokens} to {get_settings().get('include_files.max_tokens')} tokens"
+                )
+                out_str = clip_tokens(
+                    out_str,
+                    get_settings().get("include_files.max_tokens"),
+                    num_input_tokens=num_input_tokens,
+                )
+        return out_str
+    return ""
 
 def get_included_files(included_files: list, project_root: str = "", disable_tokens=False) -> str:
     if included_files:
@@ -344,7 +381,7 @@ def parse_args_full_repo(settings: Dynaconf) -> argparse.Namespace:
     return parser.parse_args()
 
 
-def find_test_files(args) -> list:
+def find_test_files(args: argparse.Namespace) -> list[Union[str, Path]]:
     """
     Scan the project directory for test files.
     """

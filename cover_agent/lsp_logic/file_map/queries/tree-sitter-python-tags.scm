@@ -12,3 +12,7 @@
   ]) @reference.call
 
 (identifier) @ref
+
+(function_definition) @test
+
+(import_statement) @import

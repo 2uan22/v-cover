@@ -1,9 +1,10 @@
 import argparse
 import os
+import asyncio
 
 from dynaconf import Dynaconf
 
-from cover_agent.cover_agent import CoverAgent
+from cover_agent.cover_agent_ import CoverAgent
 from cover_agent.settings.config_loader import get_settings
 from cover_agent.settings.config_schema import CoverAgentConfig
 from cover_agent.version import __version__
@@ -42,7 +43,7 @@ def parse_args(settings: Dynaconf) -> argparse.Namespace:
         (
             "--included-files",
             dict(
-                type=list,
+                type=str,
                 default=None,
                 nargs="*",
                 help=(
@@ -181,8 +182,8 @@ def main():
     settings = get_settings().get("default")
     args = parse_args(settings)
     config = CoverAgentConfig.from_cli_args_with_defaults(args)
-    agent = CoverAgent(config)
-    agent.run()
+    agent = CoverAgent.create(config)
+    asyncio.run(agent.run())
 
 
 if __name__ == "__main__":

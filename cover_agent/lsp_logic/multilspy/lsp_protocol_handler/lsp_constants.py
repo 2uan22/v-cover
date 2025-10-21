@@ -2,7 +2,6 @@
 This module contains constants used in the LSP protocol.
 """
 
-
 class LSPConstants:
     """
     This class contains constants used in the LSP protocol.
@@ -58,3 +57,6 @@ class LSPConstants:
 
     # key used to represent children in document symbols
     CHILDREN = "children"
+
+    # key used to represent the location in symbols
+    LOCATION = "location"

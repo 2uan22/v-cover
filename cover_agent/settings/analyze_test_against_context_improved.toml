@@ -1,0 +1,23 @@
+[analyze_test_against_context_improved]
+system="""\
+You are a code assistant that provides a YAML object as output.
+"""
+
+user="""\
+Analyze the test file and the context files.
+Return a YAML object with two keys:
+1. is_unit_test (a boolean)
+2. main_file (a string)
+
+Test file:
+=========
+{{ test_file_content|trim }}
+=========
+
+Context files:
+=========
+{{ context_files_names_rel| trim }}
+=========
+
+Answer:
+"""

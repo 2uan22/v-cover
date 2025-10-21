@@ -424,17 +424,29 @@ def uri_to_path(uri):
 
 
 def is_forbidden_directory(d_path, language):
-    directories_to_ignore = []
+    '''
+    Checks if a path contains a directory or file name that should be ignored.
+    This check is based on path components, not substrings, for robustness.
+    '''
+
+    # Convert the path string to a Path object for robust analysis.
+    path_obj = Path(d_path)
+
+    # Get all parts of the path (e.g., ['home', 'user', 'project', 'target', 'file.java'])
+    path_parts = set(path_obj.parts)
+
+    # Define sets of forbidden directory/file names for different languages.
+    directories_to_ignore = set()
     if language == "python":
-        directories_to_ignore = [
+        directories_to_ignore = {
             "venv",  # Virtual environment
             "pyenv",  # Python environment
             "__pycache__/",  # Compiled Python files
             "dist/",  # Distribution directories
             "build/",  # Build directories
-        ]
+        }
     elif language == "javascript" or language == "typescript":
-        directories_to_ignore = [
+        directories_to_ignore = {
             "node_modules/",  # Dependencies installed by npm or yarn
             "dist/",  # Common output directory for built files
             "build/",  # Another common output directory for built files
@@ -443,9 +455,9 @@ def is_forbidden_directory(d_path, language):
             ".next/",  # Next.js build output
             ".nuxt/",  # Nuxt.js build output
             ".DS_Store",  # macOS folder attributes
-        ]
+        }
     elif language == "java":
-        directories_to_ignore = [
+        directories_to_ignore = {
             "target/",  # Maven build directory
             "build/",  # Gradle build directory
             ".gradle/",  # Gradle-specific files and caches
@@ -454,14 +466,121 @@ def is_forbidden_directory(d_path, language):
             ".classpath",  # Eclipse project file
             ".project",  # Eclipse project file
             "out/",  # Output directory for IntelliJ IDEA
-        ]
+        }
     elif language == "rust":
-        directories_to_ignore = [
+        directories_to_ignore = {
             "target/",  # Default output directory for compiled artifacts
             "Cargo.lock",  # Lock file for cargo dependencies (ignored for libraries, kept for binaries)
             ".cargo/",  # Cargo cache directory
-        ]
-    if any([directory in d_path for directory in directories_to_ignore]):
-        return True
+        }
+    # if any([directory in d_path for directory in directories_to_ignore]):
+    #     return True
+    #
+    # return False
+    return not path_parts.isdisjoint(directories_to_ignore)
 
-    return False
+def remove_duplicate_included_files(included_files: list[tuple]):
+    hash_map = {}
+    for included_file in included_files:
+        file_path = included_file[0]
+        symbol_name = included_file[1]
+        symbol_tag = included_file[2]
+        start_line = included_file[3]
+        end_line = included_file[4]
+        if file_path not in hash_map.keys():
+            hash_map[file_path] = [(symbol_name, symbol_tag, start_line, end_line)]
+        else:
+            hash_map[file_path].append((symbol_name, symbol_tag, start_line, end_line))
+
+    # print("OG:")
+    # print(hash_map)
+    # collapse the list to remove all duplicate symbols and symbol that are inside each other
+    file_paths = { path for path, _, _, _, _ in included_files }
+    for file_path in file_paths:
+        # print(" - ", file_path)
+        hash_map[file_path] = collapse_list(hash_map[file_path])
+        # print(hash_map[file_path])
+
+    # TODO: maybe add in merge range here
+
+    # print("=-=-===============")
+    # print("after:")
+    # print(hash_map)
+
+    final_included_files = []
+    for path in hash_map:
+        symbol_list = hash_map[path]
+        for symbol in symbol_list:
+            final_included_files.append((path, symbol[0], symbol[1], symbol[2], symbol[3]))
+
+    return final_included_files
+
+    # print(hash_map)
+
+
+def collapse_list(symbol_list: list):
+    '''
+    works for individual file path, e.g. all symbols inside controller/CalculatorController.java
+    '''
+    hash_map = {}
+    line_ranges = { (start, end) for _, _, start, end in symbol_list }
+    
+    for symbol in symbol_list:
+        name = symbol[0]
+        tag = symbol[1]
+        start = symbol[2]
+        end = symbol[3]
+
+        # check if in some range, like (5, 6) is inside (3, 10)
+        for line_range in line_ranges:
+            range_start = line_range[0]
+            range_end = line_range[1]
+            if (
+                start < range_end and 
+                start > range_start and 
+                end < range_end and 
+                end > range_start
+            ):
+               break 
+
+            # create hash map of all symbols that has the same line range, e.g all symbol that are (4, 20)
+            if (start, end) not in hash_map.keys():
+                hash_map[(start, end)] = [(name, tag)]
+            else:
+                hash_map[(start, end)].append((name, tag))
+
+    # # select the symbol which is a class and remove symbol that is method or else
+    for symbol in hash_map:
+        class_symbol = hash_map[symbol][0]
+        for tag in hash_map[symbol]: 
+            if "class" in tag[1]:
+                class_symbol = tag
+        hash_map[symbol] = class_symbol
+
+    final_symbol_list = []
+    for symbol in hash_map:
+        key = symbol
+        value = hash_map[symbol]
+        final_symbol_list.append((value[0], value[1], key[0], key[1]))
+
+    return final_symbol_list
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -58,6 +58,7 @@ class DefaultAgentCompletion(AgentCompletionABC):
             # 2. Render system & user templates with the passed-in kwargs
             system_prompt = environment.from_string(settings.system).render(**kwargs)
             user_prompt = environment.from_string(settings.user).render(**kwargs)
+            # print("===================@@@@@@@@@@===================\nuser prompt is", user_prompt)
 
         except ValueError:
             # Re-raise the ValueError above so callers can catch it if needed.
@@ -70,7 +71,7 @@ class DefaultAgentCompletion(AgentCompletionABC):
 
         return {"system": system_prompt, "user": user_prompt}
 
-    def generate_tests(
+    async def generate_tests(
         self,
         source_file_name: str,
         max_tests: int,
@@ -125,10 +126,10 @@ class DefaultAgentCompletion(AgentCompletionABC):
             additional_includes_section=additional_includes_section,
             failed_tests_section=failed_tests_section,
         )
-        response, prompt_tokens, completion_tokens = self.caller.call_model(prompt)
+        response, prompt_tokens, completion_tokens = await self.caller.call_model(prompt)
         return response, prompt_tokens, completion_tokens, prompt["user"]
 
-    def analyze_test_failure(
+    async def analyze_test_failure(
         self,
         source_file_name: str,
         source_file: str,
@@ -173,10 +174,10 @@ class DefaultAgentCompletion(AgentCompletionABC):
             stderr=stderr,
             test_file_name=test_file_name,
         )
-        response, prompt_tokens, completion_tokens = self.caller.call_model(prompt)
+        response, prompt_tokens, completion_tokens = await self.caller.call_model(prompt)
         return response, prompt_tokens, completion_tokens, prompt["user"]
 
-    def analyze_test_insert_line(
+    async def analyze_test_insert_line(
         self,
         language: str,
         test_file_numbered: str,
@@ -211,10 +212,10 @@ class DefaultAgentCompletion(AgentCompletionABC):
             test_file_name=test_file_name,
             additional_instructions_text=additional_instructions_text,
         )
-        response, prompt_tokens, completion_tokens = self.caller.call_model(prompt)
+        response, prompt_tokens, completion_tokens = await self.caller.call_model(prompt)
         return response, prompt_tokens, completion_tokens, prompt["user"]
 
-    def analyze_test_against_context(
+    async def analyze_test_against_context(
         self,
         language: str,
         test_file_content: str,
@@ -253,10 +254,10 @@ class DefaultAgentCompletion(AgentCompletionABC):
             test_file_name_rel=test_file_name_rel,
             context_files_names_rel=context_files_names_rel,
         )
-        response, prompt_tokens, completion_tokens = self.caller.call_model(prompt)
+        response, prompt_tokens, completion_tokens = await self.caller.call_model(prompt)
         return response, prompt_tokens, completion_tokens, prompt["user"]
 
-    def analyze_suite_test_headers_indentation(
+    async def analyze_suite_test_headers_indentation(
         self,
         language: str,
         test_file_name: str,
@@ -287,10 +288,10 @@ class DefaultAgentCompletion(AgentCompletionABC):
             test_file_name=test_file_name,
             test_file=test_file,
         )
-        response, prompt_tokens, completion_tokens = self.caller.call_model(prompt)
+        response, prompt_tokens, completion_tokens = await self.caller.call_model(prompt)
         return response, prompt_tokens, completion_tokens, prompt["user"]
 
-    def adapt_test_command_for_a_single_test_via_ai(
+    async def adapt_test_command_for_a_single_test_via_ai(
         self,
         test_file_relative_path: str,
         test_command: str,
@@ -322,8 +323,8 @@ class DefaultAgentCompletion(AgentCompletionABC):
             project_root_dir=project_root_dir,
         )
 
+        response_str, prompt_tokens, completion_tokens = await self.caller.call_model(prompt)
         # Call the model
-        response_str, prompt_tokens, completion_tokens = self.caller.call_model(prompt)
 
         # Now parse the response_str as YAML, and extract "new_command_line".
         new_command_line = None

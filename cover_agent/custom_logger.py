@@ -6,12 +6,22 @@ from cover_agent.settings.config_loader import get_settings
 class CustomLogger:
 
     @classmethod
-    def get_logger(cls, name, generate_log_files=True, file_level=logging.INFO, console_level=logging.INFO):
+    def get_logger(
+        cls, 
+        name: str, 
+        task_id: int = None,
+        test_file: str = None,
+        generate_log_files: bool=True, 
+        file_level: int=logging.INFO, 
+        console_level: int=logging.INFO
+    ) -> logging.Logger:
         """
         Return a logger object with specified name.
 
         Parameters:
             name (str): The name of the logger.
+            task_id (int): The id of the current task, used for generating test for whole repo
+            test_file (str): The name of the test file currently being associated with the logger
             generate_log_files (bool): Whether to generate log files.
             file_level (int): The log level to use.
             console_level (int): The log level to use.
@@ -32,12 +42,14 @@ class CustomLogger:
             logger.error('This is an error message')
             logger.critical('This is a critical message')
         """
+        if task_id != None and test_file != None:
+            name = f'[{task_id}.{name} {test_file}]'
         logger = logging.getLogger(name)
         logger.setLevel(logging.DEBUG)
 
         # Check if handlers are already set up to avoid adding them multiple times
         if not logger.handlers:
-            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            formatter = logging.Formatter(" - %(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
             # Only add file handler if file generation is enabled
             if generate_log_files:

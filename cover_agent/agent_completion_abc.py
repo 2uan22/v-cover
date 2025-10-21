@@ -11,7 +11,7 @@ class AgentCompletionABC(ABC):
     """
 
     @abstractmethod
-    def generate_tests(
+    async def generate_tests(
         self,
         source_file_name: str,
         max_tests: int,
@@ -52,7 +52,7 @@ class AgentCompletionABC(ABC):
         pass
 
     @abstractmethod
-    def analyze_test_failure(
+    async def analyze_test_failure(
         self,
         source_file_name: str,
         source_file: str,
@@ -84,7 +84,7 @@ class AgentCompletionABC(ABC):
         pass
 
     @abstractmethod
-    def analyze_test_insert_line(
+    async def analyze_test_insert_line(
         self,
         language: str,
         test_file_numbered: str,
@@ -112,7 +112,7 @@ class AgentCompletionABC(ABC):
         pass
 
     @abstractmethod
-    def analyze_test_against_context(
+    async def analyze_test_against_context(
         self,
         language: str,
         test_file_content: str,
@@ -141,7 +141,7 @@ class AgentCompletionABC(ABC):
         pass
 
     @abstractmethod
-    def analyze_suite_test_headers_indentation(
+    async def analyze_suite_test_headers_indentation(
         self,
         language: str,
         test_file_name: str,
@@ -167,7 +167,7 @@ class AgentCompletionABC(ABC):
         pass
 
     @abstractmethod
-    def adapt_test_command_for_a_single_test_via_ai(
+    async def adapt_test_command_for_a_single_test_via_ai(
         self,
         test_file_relative_path: str,
         test_command: str,

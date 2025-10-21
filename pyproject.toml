@@ -12,7 +12,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9.17,<3.14"
+python = ">=3.10,<3.14"
 jinja2 = "^3.1.5"
 beautifulsoup4 = "^4.13.3"
 poetry-dynamic-versioning = "^1.7.1"
@@ -37,10 +37,12 @@ wandb = "^0.17.9"
 # LSP Dependencies
 grep_ast = "^0.3.3"
 tree_sitter = "^0.21.3"
-tree_sitter_languages = "^1.10.2"
 jedi-language-server = "^0.41.4"
 fuzzywuzzy = "^0.18.0"
 python-levenshtein = "^0.27.1"
+tree-sitter-languages = "^1.10.2"
+claude-code-sdk = "==0.0.11"
+nest_asyncio = "^1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"

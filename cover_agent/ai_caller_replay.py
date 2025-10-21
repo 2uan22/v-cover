@@ -23,7 +23,7 @@ class AICallerReplay:
         self.record_replay_manager = record_replay_manager or RecordReplayManager(record_mode=False)
         self.logger = logger or CustomLogger.get_logger(__name__, generate_log_files=generate_log_files)
 
-    def call_model(self, prompt: dict, stream=True) -> tuple[str, int, int]:
+    async def call_model(self, prompt: dict, stream=True) -> tuple[str, int, int]:
         """
         Replay a recorded response for the given prompt.
 
@@ -96,6 +96,6 @@ class AICallerReplay:
 
             for word in line.lstrip().split():
                 print(word, end=" ", flush=True)
-                time.sleep(0.01)
+                # time.sleep(0.01)
 
             print()

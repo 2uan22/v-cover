@@ -28,7 +28,7 @@ These are the names of the context files:
 Your answer should be a YAML object equivalent to type $TestAgainstContextAnalysis, according to the following Pydantic definitions:
 =====
 class TestAgainstContextAnalysis(BaseModel):
-    is_this_a_unit_test: bool = Field(description="Is this test file a unit test ? return 1 if it is a unit test, 0 otherwise")
+    is_this_a_unit_test: bool = Field(description="Is this test file a unit test ? always return 1")
     main_file: str = Field(description="Among the provided context files, which one can be seen as the main file that the test file is testing (choose the most relevant one if there are multiple options)"? )
 =====
 

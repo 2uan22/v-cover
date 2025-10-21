@@ -49,3 +49,9 @@ pip-delete-this-directory.txt
 
 # Other
 wandb/
+cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/
+
+./templated_tests/java_spring_calculator/*
+
+test_*
+*.sh
