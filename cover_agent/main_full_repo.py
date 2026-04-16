@@ -23,13 +23,13 @@ from cover_agent.lsp_logic.utils.utils import remove_duplicate_included_files
 
 async def process_test_file(
         test_file: Union[str, Path],
-        adapter: BuiltToolAdapterABC,
+        # adapter: BuiltToolAdapterABC,
         context_helper: ContextHelper,
         args: argparse.Namespace,
         semaphore: asyncio.Semaphore = None,
-        task_id: int = None,
-        logger: Optional[CustomLogger] = None
-) -> (str, int, int, bool, bool, str):
+        task_id: int = 0,
+        logger: Optional[logging.Logger] = None
+) -> tuple[str, int, int, bool, bool, str]:
     """
     Process a single test file asynchronously.
     Returns:
@@ -47,11 +47,16 @@ async def process_test_file(
     accepted_tests = []
     try:
         # create a logger, each logger is assoc
-        logger = logger or CustomLogger.get_logger(__name__, task_id, os.path.basename(test_file), generate_log_files=False)
+        if logger == None:
+            logger = CustomLogger.get_logger(__name__, task_id, os.path.basename(test_file), generate_log_files=False)
         logger.info(f"Test file is: {test_file}")
 
+        context = await context_helper.find_test_file_context(Path(test_file))
+        if context == None:
+            context = []
+        print("Context files for test file '{}':\n{}".format(test_file, "".join(f"{f}\n" for f in context)))
         # Find the context files for the test file
-        all_context: list[tuple] = await context_helper.find_all_context(test_file)
+        all_context: list[tuple] = await context_helper.find_all_context(Path(test_file))
         deduped_context = remove_duplicate_included_files(all_context)
         context_files: set[Path] = { context_file for context_file, _, _, _, _ in deduped_context }
         logger.info("All context files:\n{}".format("".join(f"{f}\n" for f in deduped_context)))
@@ -60,12 +65,18 @@ async def process_test_file(
         generate_log_files = not args.suppress_log_files
         api_base = getattr(args, "api_base", "")
 
-        ai_caller = AICaller(task_id=task_id, test_file=test_file, model=args.model, api_base=api_base, generate_log_files=generate_log_files)
+        ai_caller = AICaller(task_id=task_id, test_file=str(test_file), model=args.model, api_base=api_base, generate_log_files=generate_log_files)
         # Analyze the test file against the context files
         logger.info(f"\nAnalyzing test file against context files...")
-        source_file, context_files_include, context_input_token, context_output_token = await context_helper.analyze_context(
-            test_file, context_files, ai_caller
-        )
+        if context_files != None:
+            source_file, context_files_include, context_input_token, context_output_token = await context_helper.analyze_context(
+                Path(test_file), context_files, ai_caller
+            )
+        else:
+            source_file, context_files_include, context_input_token, context_output_token = await context_helper.analyze_context(
+                Path(test_file), context, ai_caller
+            )
+
         # print("[=================================================]")
         # print("source file is:")
         # print(source_file)
@@ -90,10 +101,10 @@ async def process_test_file(
                 args_copy.included_files = context_files_include
                 args_copy.all_included_files = all_context_no_test_no_source 
                 # args_copy.test_command = adapter.adapt_test_command(test_file)
-                args_copy.code_coverage_report_path = adapter.get_coverage_path(test_file)
+                # args_copy.code_coverage_report_path = adapter.get_coverage_path(test_file)
 
                 config = CoverAgentConfig.from_cli_args_with_defaults(args_copy)
-                agent = await CoverAgent.create(config=config, task_id=task_id, built_tool_adapter=adapter, semaphore=semaphore)
+                agent = await CoverAgent.create(config=config, task_id=task_id, semaphore=semaphore)
 
                 input_token, output_token, target_reached, generated_tests, accepted_tests = await agent.run()
                 total_input_token += input_token
@@ -108,6 +119,7 @@ async def process_test_file(
             return (test_file, total_input_token, total_output_token, target_reached, generated_tests, accepted_tests, False, "No source file found")
     except Exception as e:
         logger.error(f"Error processing: {e}")
+        raise e
         return (test_file, total_input_token, total_output_token, False, [], [], False, f"Processing error: {str(e)}")
 
 
@@ -204,20 +216,20 @@ async def run():
             print(f"✅ Successfully created: {len(successful_generations)} test files")
             print(f"❌ Failed: {len(failed_generations)} test files")
 
-        adapter = get_built_tool_adapter(args.test_command, args.project_root, args.project_language)
-
-        try:
-            if adapter: 
-                adapter.prepare_environment()
+        # adapter = get_built_tool_adapter(args.test_command, args.project_root, args.project_language)
+        #
+        # try:
+        #     if adapter: 
+        #         adapter.prepare_environment()
             # Process all test files concurrently
-            tasks = [process_test_file(test_file=test_file, adapter=adapter, context_helper=context_helper, args=args, task_id=task_id, semaphore=semaphore) 
-                     for task_id, test_file in enumerate(test_files, 1)]
-            results = await asyncio.gather(*tasks)
-            total_input_token = sum([input for f, input, output, _, _, _, r, e in results])
-            total_output_token = sum([output for f, input, output, _, _, _, r, e in results])
-        finally:
-            if adapter:
-                adapter.cleanup_environment()
+        tasks = [process_test_file(test_file=test_file, context_helper=context_helper, args=args, task_id=task_id, semaphore=semaphore) 
+                 for task_id, test_file in enumerate(test_files, 1)]
+        results = await asyncio.gather(*tasks)
+        total_input_token = sum([input for f, input, output, _, _, _, r, e in results])
+        total_output_token = sum([output for f, input, output, _, _, _, r, e in results])
+        # finally:
+        #     if adapter:
+        #         adapter.cleanup_environment()
         
         process_and_display_metrics(results)
 

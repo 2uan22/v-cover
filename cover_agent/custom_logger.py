@@ -3,7 +3,7 @@ import logging
 from cover_agent.settings.config_loader import get_settings
 
 
-class CustomLogger:
+class CustomLogger(logging.Logger):
 
     @classmethod
     def get_logger(

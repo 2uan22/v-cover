@@ -55,3 +55,4 @@ cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/
 
 test_*
 *.sh
+*templated_tests/*

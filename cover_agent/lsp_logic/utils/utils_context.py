@@ -14,7 +14,7 @@ from cover_agent.settings.config_loader import get_settings
 from cover_agent.utils import load_yaml
 
 
-def find_java_primary_file(test_file, project_root):
+def find_java_primary_file(test_file: str, project_root: str):
     """
     Find the primary source file for a Java test file based on naming conventions.
 
@@ -103,15 +103,11 @@ async def analyze_context(test_file, context_files, args, ai_caller) -> (str, st
         user_prompt = environment.from_string(
             get_settings().analyze_test_against_context.user
         ).render(variables)
-        # print("0000000000000000000000000000000000000000000000000000000000000000000000")
-        # print(user_prompt)
-        # print("0000000000000000000000000000000000000000000000000000000000000000000000")
         response, prompt_token_count, response_token_count = await ai_caller.call_model(
             prompt={"system": system_prompt, "user": user_prompt}, stream=False
         )
         response_dict = load_yaml(response)
         if int(response_dict.get("is_this_a_unit_test", 0)) == 1:
-        # if int(response_dict.get("is_unit_test", 0)) == 1:
             source_file_rel = response_dict.get("main_file", "").strip().strip("`")
             source_file = os.path.join(args.project_root, source_file_rel)
             for file in context_files:
@@ -143,8 +139,8 @@ async def find_all_context(args: argparse.Namespace, lsp: LanguageServer, test_f
     context_files = [] #set()
     # visited = set()
 
-    if args.project_language == "java" and test_file.endswith(".java"):
-        potential_primary = find_java_primary_file(test_file, args.project_root)
+    if args.project_language == "java" and str(test_file).endswith(".java"):
+        potential_primary = find_java_primary_file(str(test_file), args.project_root)
         if potential_primary:
             primary_file = Path(potential_primary).resolve()
 
