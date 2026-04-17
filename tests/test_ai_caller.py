@@ -1,6 +1,6 @@
 import os
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -19,18 +19,19 @@ class TestAICaller:
         """
         return AICaller(model="test-model", api_base="test-api", enable_retry=False)
 
-    @patch("cover_agent.ai_caller.AICaller.call_model")
-    def test_call_model_simplified(self, mock_call_model):
+    @patch("cover_agent.ai_caller.AICaller.call_model", new_callable=AsyncMock)
+    async def test_call_model_simplified(self, mock_call_model):
         """
         Test the call_model method with a simplified scenario.
         """
         # Set up the mock to return a predefined response
+        # mock_call_model = AsyncMock()
         mock_call_model.return_value = ("Hello world!", 2, 10)
         prompt = {"system": "", "user": "Hello, world!"}
 
         ai_caller = AICaller("test-model", "test-api", enable_retry=False)
         # Explicitly provide the default value of max_tokens
-        response, prompt_tokens, response_tokens = ai_caller.call_model(prompt)
+        response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt)
 
         # Assertions to check if the returned values are as expected
         assert response == "Hello world!"
@@ -40,8 +41,8 @@ class TestAICaller:
         # Check if call_model was called correctly
         mock_call_model.assert_called_once_with(prompt)
 
-    @patch("cover_agent.ai_caller.litellm.completion")
-    def test_call_model_with_error(self, mock_completion, ai_caller):
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
+    async def test_call_model_with_error(self, mock_completion, ai_caller):
         """
         Test the call_model method when an exception is raised.
         """
@@ -50,31 +51,31 @@ class TestAICaller:
         prompt = {"system": "", "user": "Hello, world!"}
         # Call the method and handle the exception
         with pytest.raises(Exception) as exc_info:
-            ai_caller.call_model(prompt)
+            await ai_caller.call_model(prompt)
 
         assert str(exc_info.value) == "Test exception"
 
-    @patch("cover_agent.ai_caller.litellm.completion")
-    def test_call_model_error_streaming(self, mock_completion, ai_caller):
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
+    async def test_call_model_error_streaming(self, mock_completion, ai_caller):
         """
         Test the call_model method when an exception is raised during streaming.
         """
         # Set up mock to raise an exception
-        mock_completion.side_effect = ["results"]
+        mock_completion.side_effect = [Mock(choices=None)]
         prompt = {"system": "", "user": "Hello, world!"}
         # Call the method and handle the exception
         with pytest.raises(Exception) as exc_info:
-            ai_caller.call_model(prompt)
+            await ai_caller.call_model(prompt)
 
         # assert str(exc_info.value) == "list index out of range"
         assert (
             str(exc_info.value) == "'NoneType' object is not subscriptable"
         )  # this error message might change for different versions of litellm
 
-    @patch("cover_agent.ai_caller.litellm.completion")
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
     @patch.dict(os.environ, {"WANDB_API_KEY": "test_key"})
     @patch("cover_agent.ai_caller.Trace.log")
-    def test_call_model_wandb_logging(self, mock_log, mock_completion, ai_caller):
+    async def test_call_model_wandb_logging(self, mock_log, mock_completion, ai_caller):
         """
         Test the call_model method with W&B logging enabled.
         """
@@ -85,14 +86,14 @@ class TestAICaller:
                 "choices": [{"message": {"content": "response"}}],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 10},
             }
-            response, prompt_tokens, response_tokens = ai_caller.call_model(prompt)
+            response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt)
             assert response == "response"
             assert prompt_tokens == 2
             assert response_tokens == 10
             mock_log.assert_called_once()
 
-    @patch("cover_agent.ai_caller.litellm.completion")
-    def test_call_model_api_base(self, mock_completion, ai_caller):
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
+    async def test_call_model_api_base(self, mock_completion, ai_caller):
         """
         Test the call_model method with a different API base.
         """
@@ -104,14 +105,14 @@ class TestAICaller:
                 "choices": [{"message": {"content": "response"}}],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 10},
             }
-            response, prompt_tokens, response_tokens = ai_caller.call_model(prompt)
+            response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt)
             assert ai_caller.api_base == "test-api"
             assert response == "response"
             assert prompt_tokens == 2
             assert response_tokens == 10
 
-    @patch("cover_agent.ai_caller.litellm.completion")
-    def test_call_model_with_system_key(self, mock_completion, ai_caller):
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
+    async def test_call_model_with_system_key(self, mock_completion, ai_caller):
         """
         Test the call_model method with a system key in the prompt.
         """
@@ -122,22 +123,22 @@ class TestAICaller:
                 "choices": [{"message": {"content": "response"}}],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 10},
             }
-            response, prompt_tokens, response_tokens = ai_caller.call_model(prompt)
+            response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt)
             assert response == "response"
             assert prompt_tokens == 2
             assert response_tokens == 10
 
-    def test_call_model_missing_keys(self, ai_caller):
+    async def test_call_model_missing_keys(self, ai_caller):
         """
         Test the call_model method when the prompt is missing required keys.
         """
         prompt = {"user": "Hello, world!"}
         with pytest.raises(KeyError) as exc_info:
-            ai_caller.call_model(prompt)
+            await ai_caller.call_model(prompt)
         assert str(exc_info.value) == "\"The prompt dictionary must contain 'system' and 'user' keys.\""
 
-    @patch("cover_agent.ai_caller.litellm.completion")
-    def test_call_model_o1_preview(self, mock_completion, ai_caller):
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
+    async def test_call_model_o1_preview(self, mock_completion, ai_caller):
         """
         Test the call_model method with the 'o1-preview' model.
         """
@@ -149,13 +150,13 @@ class TestAICaller:
         mock_response.usage = Mock(prompt_tokens=2, completion_tokens=10)
         mock_completion.return_value = mock_response
         # Call the method
-        response, prompt_tokens, response_tokens = ai_caller.call_model(prompt, stream=False)
+        response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt, stream=False)
         assert response == "response"
         assert prompt_tokens == 2
         assert response_tokens == 10
 
-    @patch("cover_agent.ai_caller.litellm.completion")
-    def test_call_model_streaming_response(self, mock_completion, ai_caller):
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
+    async def test_call_model_streaming_response(self, mock_completion, ai_caller):
         """
         Test the call_model method with a streaming response.
         """
@@ -169,14 +170,14 @@ class TestAICaller:
                 "choices": [{"message": {"content": "response"}}],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 10},
             }
-            response, prompt_tokens, response_tokens = ai_caller.call_model(prompt, stream=True)
+            response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt, stream=True)
             assert response == "response"
             assert prompt_tokens == 2
 
-    @patch("cover_agent.ai_caller.litellm.completion")
+    @patch("cover_agent.ai_caller.litellm.acompletion", new_callable=AsyncMock)
     @patch.dict(os.environ, {"WANDB_API_KEY": "test_key"})
     @patch("cover_agent.ai_caller.Trace.log")
-    def test_call_model_wandb_logging_exception(self, mock_log, mock_completion, ai_caller):
+    async def test_call_model_wandb_logging_exception(self, mock_log, mock_completion, ai_caller):
         """
         Test the call_model method with W&B logging and handle logging exceptions.
         """
@@ -196,7 +197,7 @@ class TestAICaller:
                 "choices": [{"message": {"content": "response"}}],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 10},
             }
-            response, prompt_tokens, response_tokens = ai_caller.call_model(prompt)
+            response, prompt_tokens, response_tokens = await ai_caller.call_model(prompt)
 
             assert response == "response"
             assert prompt_tokens == 2

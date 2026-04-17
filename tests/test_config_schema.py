@@ -23,6 +23,7 @@ class TestCoverAgentConfig:
             test_command="pytest",
             test_command_dir="/project/tests",
             included_files=["src/main.py"],
+            all_included_files=["src/main.py"],
             coverage_type=CoverageType.COBERTURA,
             report_filepath="report.html",
             desired_coverage=90,
@@ -43,6 +44,8 @@ class TestCoverAgentConfig:
             max_test_files_allowed_to_analyze=20,
             look_for_oldest_unchanged_test_file=False,
             project_language="python",
+            claude_code=False,
+            copilot=False,
         )
 
     def test_coverage_type_enum(self):
@@ -155,6 +158,7 @@ class TestCoverAgentConfig:
             "test_command": "python -m pytest",
             "test_command_dir": "/default/tests",
             "included_files": None,
+            "all_included_files": None,
             "coverage_type": "cobertura",
             "report_filepath": "default_report.html",
             "desired_coverage": 80,

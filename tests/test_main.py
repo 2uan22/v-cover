@@ -1,11 +1,11 @@
 import argparse
 import os
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cover_agent.main import main, parse_args
+from cover_agent.main import main, parse_args, _async_main
 
 
 @pytest.fixture
@@ -104,8 +104,8 @@ class TestMain:
             assert args.max_iterations == 10
 
     @patch("cover_agent.settings.config_loader.get_settings")
-    @patch("cover_agent.main.CoverAgent")
-    def test_main_source_file_not_found(self, mock_cover_agent, mock_get_settings, mock_settings, base_args):
+    @patch("cover_agent.main.CoverAgent.create", new_callable=AsyncMock)
+    async def test_main_source_file_not_found(self, mock_cover_agent, mock_get_settings, mock_settings, base_args):
         """Test FileNotFoundError when source file is not found."""
         mock_get_settings.return_value = {"default": mock_settings}
 
@@ -115,13 +115,13 @@ class TestMain:
             mock_cover_agent.return_value = mock_agent
 
             with pytest.raises(FileNotFoundError) as exc_info:
-                main()
+                await _async_main()
 
             assert str(exc_info.value) == f"Source file not found at {base_args.source_file_path}"
 
     @patch("cover_agent.settings.config_loader.get_settings")
-    @patch("cover_agent.main.CoverAgent")
-    def test_main_test_file_not_found(self, mock_cover_agent, mock_get_settings, mock_settings, base_args):
+    @patch("cover_agent.main.CoverAgent.create", new_callable=AsyncMock)
+    async def test_main_test_file_not_found(self, mock_cover_agent, mock_get_settings, mock_settings, base_args):
         """Test FileNotFoundError when test file is not found."""
         mock_get_settings.return_value = {"default": mock_settings}
 
@@ -131,21 +131,21 @@ class TestMain:
             mock_cover_agent.return_value = mock_agent
 
             with pytest.raises(FileNotFoundError) as exc_info:
-                main()
+                await _async_main()
 
             assert str(exc_info.value) == f"Test file not found at {base_args.test_file_path}"
 
     @patch("cover_agent.settings.config_loader.get_settings")
-    @patch("cover_agent.main.CoverAgent")
-    def test_main_calls_agent_run(self, mock_cover_agent, mock_get_settings, mock_settings, base_args):
+    @patch("cover_agent.main.CoverAgent.create", new_callable=AsyncMock)
+    async def test_main_calls_agent_run(self, mock_cover_agent, mock_get_settings, mock_settings, base_args):
         """Test that main correctly initializes and runs the CoverAgent."""
         mock_get_settings.return_value = {"default": mock_settings}
 
         with patch("cover_agent.main.parse_args", return_value=base_args):
-            mock_agent = MagicMock()
+            mock_agent = AsyncMock()
             mock_cover_agent.return_value = mock_agent
 
-            main()
+            await _async_main()
 
             mock_cover_agent.assert_called_once()
             mock_agent.run.assert_called_once()

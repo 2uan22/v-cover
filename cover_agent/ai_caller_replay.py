@@ -96,6 +96,6 @@ class AICallerReplay:
 
             for word in line.lstrip().split():
                 print(word, end=" ", flush=True)
-                # time.sleep(0.01)
+                time.sleep(0.01)
 
             print()

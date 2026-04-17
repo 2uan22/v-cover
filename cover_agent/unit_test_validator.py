@@ -238,8 +238,6 @@ class UnitTestValidator:
                 )
 
             relevant_line_number_to_insert_tests_after = find_unit_test_insert_line(self.language, self.project_root, self.test_file_path)
-            # print("%%%%%%%%%%%%%%%%%%%%")
-            # print("relavent line: ", relevant_line_number_to_insert_tests_after)
 
             
             relevant_line_number_to_insert_imports_after = find_import_insert_line(self.language, self.project_root, self.test_file_path)
@@ -483,20 +481,12 @@ class UnitTestValidator:
                     # Step 2: Run the test using the Runner class
                     for i in range(self.num_attempts):
                         self.logger.info(f'Running test with the following command: "{self.test_command}"')
-                        # if self.run_command_async == True:
                         stdout, stderr, exit_code, time_of_test_command = await Runner.async_run_command(
                             command=self.test_command,
                             cwd=self.test_command_dir,
                             max_run_time_sec=self.max_run_time_sec,
-                            # semaphore=self.semaphore,
                             logger=self.logger
                         )
-                        # else:
-                        # stdout, stderr, exit_code, time_of_test_command = Runner.run_command(
-                        #     command=self.test_command,
-                        #     cwd=self.test_command_dir,
-                        #     max_run_time_sec=self.max_run_time_sec,
-                        # )
                         if exit_code != 0:
                             break
 

@@ -178,13 +178,15 @@ def parse_args(settings: Dynaconf) -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
+async def _async_main():
     settings = get_settings().get("default")
     args = parse_args(settings)
     config = CoverAgentConfig.from_cli_args_with_defaults(args)
-    agent = CoverAgent.create(config)
-    asyncio.run(agent.run())
+    agent = await CoverAgent.create(config)
+    await agent.run()
 
+def main():
+    asyncio.run(_async_main())
 
 if __name__ == "__main__":
     main()

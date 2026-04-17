@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,12 +10,12 @@ class TestDefaultAgentCompletion:
     Test suite for the DefaultAgentCompletion class.
     """
 
-    def test_generate_tests(self):
+    async def test_generate_tests(self):
         """
         Test the generate_tests method to ensure it correctly constructs the prompt,
         calls the AI model, and returns the expected response and tokens.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         mock_caller.call_model.return_value = ("test response", 100, 50)
         agent = DefaultAgentCompletion(caller=mock_caller)
 
@@ -25,7 +25,7 @@ class TestDefaultAgentCompletion:
                 "user": "user prompt",
             }
 
-            result = agent.generate_tests(
+            result = await agent.generate_tests(
                 source_file_name="test.py",
                 max_tests=5,
                 source_file_numbered="1: code",
@@ -40,12 +40,12 @@ class TestDefaultAgentCompletion:
             mock_build_prompt.assert_called_once()
             mock_caller.call_model.assert_called_once()
 
-    def test_adapt_test_command_success(self):
+    async def test_adapt_test_command_success(self):
         """
         Test the adapt_test_command_for_a_single_test_via_ai method to ensure it correctly
         adapts the test command and returns the expected new command line and tokens.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         mock_caller.call_model.return_value = (
             '{"new_command_line": "pytest test_file.py"}',
             100,
@@ -53,7 +53,7 @@ class TestDefaultAgentCompletion:
         )
         agent = DefaultAgentCompletion(caller=mock_caller)
 
-        result = agent.adapt_test_command_for_a_single_test_via_ai(
+        result = await agent.adapt_test_command_for_a_single_test_via_ai(
             test_file_relative_path="test_file.py",
             test_command="pytest",
             project_root_dir="/path",
@@ -118,12 +118,12 @@ class TestDefaultAgentCompletion:
 
             assert result == {"system": "Hello World", "user": "Test 42"}
 
-    def test_adapt_test_command_yaml_parsing_error(self):
+    async def test_adapt_test_command_yaml_parsing_error(self):
         """
         Test the adapt_test_command_for_a_single_test_via_ai method to ensure it returns
         None for the command when YAML parsing fails.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         # Return invalid YAML to trigger parsing error
         mock_caller.call_model.return_value = ("invalid yaml content", 100, 50)
         agent = DefaultAgentCompletion(caller=mock_caller)
@@ -131,7 +131,7 @@ class TestDefaultAgentCompletion:
         with patch("cover_agent.default_agent_completion.load_yaml") as mock_load_yaml:
             mock_load_yaml.side_effect = Exception("YAML parsing error")
 
-            result = agent.adapt_test_command_for_a_single_test_via_ai(
+            result = await agent.adapt_test_command_for_a_single_test_via_ai(
                 test_file_relative_path="test_file.py",
                 test_command="pytest",
                 project_root_dir="/path",
@@ -143,12 +143,12 @@ class TestDefaultAgentCompletion:
             assert result[2] == 50
             assert isinstance(result[3], str)
 
-    def test_analyze_suite_test_headers_indentation(self):
+    async def test_analyze_suite_test_headers_indentation(self):
         """
         Test the analyze_suite_test_headers_indentation method to ensure it correctly
         constructs the prompt, calls the AI model, and returns the expected response and tokens.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         mock_caller.call_model.return_value = ("indentation analysis", 100, 50)
         agent = DefaultAgentCompletion(caller=mock_caller)
 
@@ -158,7 +158,7 @@ class TestDefaultAgentCompletion:
                 "user": "user prompt",
             }
 
-            result = agent.analyze_suite_test_headers_indentation(
+            result = await agent.analyze_suite_test_headers_indentation(
                 language="python",
                 test_file_name="test_file.py",
                 test_file="test content",
@@ -168,12 +168,12 @@ class TestDefaultAgentCompletion:
             mock_build_prompt.assert_called_once()
             mock_caller.call_model.assert_called_once()
 
-    def test_analyze_test_against_context(self):
+    async def test_analyze_test_against_context(self):
         """
         Test the analyze_test_against_context method to ensure it correctly constructs
         the prompt, calls the AI model, and returns the expected response and tokens.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         mock_caller.call_model.return_value = ("context analysis response", 100, 50)
         agent = DefaultAgentCompletion(caller=mock_caller)
 
@@ -183,7 +183,7 @@ class TestDefaultAgentCompletion:
                 "user": "user prompt",
             }
 
-            result = agent.analyze_test_against_context(
+            result = await agent.analyze_test_against_context(
                 language="python",
                 test_file_content="test content",
                 test_file_name_rel="tests/test_file.py",
@@ -194,12 +194,12 @@ class TestDefaultAgentCompletion:
             mock_build_prompt.assert_called_once()
             mock_caller.call_model.assert_called_once()
 
-    def test_analyze_test_insert_line(self):
+    async def test_analyze_test_insert_line(self):
         """
         Test the analyze_test_insert_line method to ensure it correctly constructs the
         prompt, calls the AI model, and returns the expected response and tokens.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         mock_caller.call_model.return_value = ("insert line response", 100, 50)
         agent = DefaultAgentCompletion(caller=mock_caller)
 
@@ -209,7 +209,7 @@ class TestDefaultAgentCompletion:
                 "user": "user prompt",
             }
 
-            result = agent.analyze_test_insert_line(
+            result = await agent.analyze_test_insert_line(
                 language="python",
                 test_file_numbered="1: test content",
                 test_file_name="test_file.py",
@@ -220,12 +220,12 @@ class TestDefaultAgentCompletion:
             mock_build_prompt.assert_called_once()
             mock_caller.call_model.assert_called_once()
 
-    def test_analyze_test_failure(self):
+    async def test_analyze_test_failure(self):
         """
         Test the analyze_test_failure method to ensure it correctly constructs the prompt,
         calls the AI model, and returns the expected response and tokens.
         """
-        mock_caller = MagicMock()
+        mock_caller = AsyncMock()
         mock_caller.call_model.return_value = ("analysis response", 100, 50)
         agent = DefaultAgentCompletion(caller=mock_caller)
 
@@ -235,7 +235,7 @@ class TestDefaultAgentCompletion:
                 "user": "user prompt",
             }
 
-            result = agent.analyze_test_failure(
+            result = await agent.analyze_test_failure(
                 source_file_name="test.py",
                 source_file="source content",
                 processed_test_file="test content",

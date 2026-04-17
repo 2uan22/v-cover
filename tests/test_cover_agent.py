@@ -2,11 +2,12 @@ import argparse
 import os
 import tempfile
 
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
 from cover_agent.cover_agent_ import CoverAgent
+from cover_agent.custom_logger import CustomLogger
 from cover_agent.main import parse_args
 from cover_agent.settings.config_schema import CoverAgentConfig
 
@@ -28,6 +29,7 @@ class TestCoverAgent:
             test_command=args.test_command,
             test_command_dir=args.test_command_dir,
             included_files=args.included_files,
+            all_included_files=args.included_files,
             coverage_type=args.coverage_type,
             report_filepath=args.report_filepath,
             desired_coverage=args.desired_coverage,
@@ -117,9 +119,9 @@ class TestCoverAgent:
             assert args.max_iterations == 10
             assert args.suppress_log_files is True
 
-    @patch("cover_agent.cover_agent.UnitTestGenerator")
-    @patch("cover_agent.cover_agent.os.path.isfile")
-    def test_agent_source_file_not_found(self, mock_isfile, mock_unit_cover_agent):
+    @patch("cover_agent.cover_agent_.UnitTestGenerator")
+    @patch("cover_agent.cover_agent_.os.path.isfile")
+    async def test_agent_source_file_not_found(self, mock_isfile, mock_unit_cover_agent):
         """
         Test the behavior when the test file is not found.
 
@@ -152,19 +154,19 @@ class TestCoverAgent:
         config = self.create_config_from_args(args)
         with patch("cover_agent.main.parse_args", parse_args):
             with pytest.raises(FileNotFoundError) as exc_info:
-                agent = CoverAgent(config)
+                agent = await CoverAgent.create(config)
 
         # Assert that the correct error message is raised
-        assert str(exc_info.value) == f"Source file not found at {args.source_file_path}"
+        assert str(exc_info.value) == f"Source file not found at {args.source_file_path} for {args.test_file_path}"
 
         mock_unit_cover_agent.assert_not_called()
 
         assert args.suppress_log_files is False
 
-    @patch("cover_agent.cover_agent.os.path.exists")
-    @patch("cover_agent.cover_agent.os.path.isfile")
-    @patch("cover_agent.cover_agent.UnitTestGenerator")
-    def test_agent_test_file_not_found(self, mock_unit_cover_agent, mock_isfile, mock_exists):
+    @patch("cover_agent.cover_agent_.os.path.exists")
+    @patch("cover_agent.cover_agent_.os.path.isfile")
+    @patch("cover_agent.cover_agent_.UnitTestGenerator")
+    async def test_agent_test_file_not_found(self, mock_unit_cover_agent, mock_isfile, mock_exists):
         """
         Test the behavior when the test file is not found.
 
@@ -200,13 +202,13 @@ class TestCoverAgent:
         config = self.create_config_from_args(args)
         with patch("cover_agent.main.parse_args", parse_args):
             with pytest.raises(FileNotFoundError) as exc_info:
-                agent = CoverAgent(config)
+                agent = await CoverAgent.create(config)
 
         # Assert that the correct error message is raised
         assert str(exc_info.value) == f"Test file not found at {args.test_file_path}"
 
-    @patch("cover_agent.cover_agent.os.path.isfile", return_value=True)
-    def test_duplicate_test_file_without_output_path(self, mock_isfile):
+    @patch("cover_agent.cover_agent_.os.path.isfile", return_value=True)
+    async def test_duplicate_test_file_without_output_path(self, mock_isfile):
         """
         Test the behavior when no output path is provided for the test file.
 
@@ -250,8 +252,8 @@ class TestCoverAgent:
 
                 config = self.create_config_from_args(args)
                 with pytest.raises(AssertionError) as exc_info:
-                    agent = CoverAgent(config)
-                    failed_test_runs = agent.test_validator.get_coverage()
+                    agent = await CoverAgent.create(config)
+                    failed_test_runs = await agent.test_validator.get_coverage()
                     agent._duplicate_test_file()
 
                 # Assert that the correct error message is raised
@@ -262,12 +264,12 @@ class TestCoverAgent:
         os.remove(temp_source_file.name)
         os.remove(temp_test_file.name)
 
-    @patch("cover_agent.cover_agent.os.environ", {})
-    @patch("cover_agent.cover_agent.sys.exit")
-    @patch("cover_agent.cover_agent.UnitTestGenerator")
-    @patch("cover_agent.cover_agent.UnitTestValidator")
-    @patch("cover_agent.cover_agent.UnitTestDB")
-    def test_run_max_iterations_strict_coverage(
+    @patch("cover_agent.cover_agent_.os.environ", {})
+    @patch("cover_agent.cover_agent_.sys.exit")
+    @patch("cover_agent.cover_agent_.UnitTestGenerator")
+    @patch("cover_agent.cover_agent_.UnitTestValidator")
+    @patch("cover_agent.cover_agent_.UnitTestDB")
+    async def test_run_max_iterations_strict_coverage(
         self,
         mock_test_db,
         mock_unit_test_validator,
@@ -324,20 +326,24 @@ class TestCoverAgent:
             validator = mock_unit_test_validator.return_value
             validator.current_coverage = 0.5  # below desired coverage
             validator.desired_coverage = 90
+            validator.initial_test_suite_analysis = AsyncMock()
+            validator.get_coverage = AsyncMock()
             validator.get_coverage.return_value = [{}, "python", "pytest", ""]
+            validator.validate_test = AsyncMock()
             generator = mock_unit_test_generator.return_value
+            generator.generate_tests = AsyncMock()
             generator.generate_tests.return_value = {"new_tests": [{}]}
 
             config = self.create_config_from_args(args)
-            agent = CoverAgent(config)
-            agent.run()
+            agent = await CoverAgent.create(config)
+            await agent.run()
 
             # Assertions to ensure sys.exit was called
             mock_sys_exit.assert_called_once_with(2)
             mock_test_db.return_value.dump_to_report.assert_called_once_with(args.report_filepath)
 
-    @patch("cover_agent.cover_agent.os.path.isfile", return_value=True)
-    @patch("cover_agent.cover_agent.os.path.isdir", return_value=False)
+    @patch("cover_agent.cover_agent_.os.path.isfile", return_value=True)
+    @patch("cover_agent.cover_agent_.os.path.isdir", return_value=False)
     def test_project_root_not_found(self, mock_isdir, mock_isfile):
         """
         Test the behavior when the project root directory is not found.
@@ -374,11 +380,11 @@ class TestCoverAgent:
         # Assert that the correct error message is raised
         assert str(exc_info.value) == f"Project root not found at {args.project_root}"
 
-    @patch("cover_agent.cover_agent.UnitTestValidator")
-    @patch("cover_agent.cover_agent.UnitTestGenerator")
-    @patch("cover_agent.cover_agent.UnitTestDB")
-    @patch("cover_agent.cover_agent.CustomLogger")
-    def test_run_diff_coverage(self, mock_logger, mock_test_db, mock_test_gen, mock_test_validator):
+    @patch("cover_agent.cover_agent_.UnitTestValidator")
+    @patch("cover_agent.cover_agent_.UnitTestGenerator")
+    @patch("cover_agent.cover_agent_.UnitTestDB")
+    @patch("cover_agent.cover_agent_.CustomLogger")
+    async def test_run_diff_coverage(self, mock_logger, mock_test_db, mock_test_gen, mock_test_validator):
         """
         Test the behavior of the CoverAgent when diff coverage is enabled.
 
@@ -429,11 +435,15 @@ class TestCoverAgent:
             )
             mock_test_validator.return_value.current_coverage = 0.5
             mock_test_validator.return_value.desired_coverage = 90
+            mock_test_validator.return_value.validate_test = AsyncMock()
+            mock_test_validator.return_value.get_coverage = AsyncMock()
             mock_test_validator.return_value.get_coverage.return_value = [{}, "python", "pytest", ""]
+            mock_test_validator.return_value.initial_test_suite_analysis = AsyncMock()
+            mock_test_gen.return_value.generate_tests = AsyncMock()
             mock_test_gen.return_value.generate_tests.return_value = {"new_tests": [{}]}
             config = self.create_config_from_args(args)
-            agent = CoverAgent(config)
-            agent.run()
+            agent = await CoverAgent.create(config)
+            await agent.run()
             mock_logger.get_logger.return_value.info.assert_any_call(
                 f"Current Diff Coverage: {round(mock_test_validator.return_value.current_coverage * 100, 2)}%"
             )
@@ -443,11 +453,11 @@ class TestCoverAgent:
         os.remove(temp_test_file.name)
         os.remove(temp_output_file.name)
 
-    @patch("cover_agent.cover_agent.os.path.isfile", return_value=True)
-    @patch("cover_agent.cover_agent.os.path.isdir", return_value=True)
-    @patch("cover_agent.cover_agent.shutil.copy")
+    @patch("cover_agent.cover_agent_.os.path.isfile", return_value=True)
+    @patch("cover_agent.cover_agent_.os.path.isdir", return_value=True)
+    @patch("cover_agent.cover_agent_.shutil.copy")
     @patch("builtins.open", new_callable=mock_open, read_data="# Test content")
-    def test_run_each_test_separately_with_pytest(self, mock_open_file, mock_copy, mock_isdir, mock_isfile):
+    async def test_run_each_test_separately_with_pytest(self, mock_open_file, mock_copy, mock_isdir, mock_isfile):
         """
         Test the behavior of the CoverAgent when running each test separately with pytest.
 
@@ -499,10 +509,10 @@ class TestCoverAgent:
             )
 
             config = self.create_config_from_args(args)
-            agent = CoverAgent(config)  # Create CoverAgent instance to trigger command modification
+            agent = await CoverAgent.create(config)  # Create CoverAgent instance to trigger command modification
 
             # Verify the test command was modified correctly
-            assert agent.config.test_command == "pytest tests/test_output.py --cov=myapp --cov-report=xml"
+            assert agent.config.test_command == "pytest --cov=myapp --cov-report=xml tests/test_output.py"
             assert agent.config.test_command_original == "pytest --cov=myapp --cov-report=xml"
 
             # Clean up temporary files
