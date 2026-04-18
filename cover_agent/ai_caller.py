@@ -2,14 +2,18 @@ import asyncio
 import datetime
 import os
 import time
+import pprint
 
 from functools import wraps
 from pathlib import Path
 from typing import Optional
+from copilot.client import SessionEvent
+from copilot.session import PermissionHandler, SessionEventType
 import nest_asyncio
 
 import litellm
 from claude_code_sdk import ClaudeCodeOptions, query, AssistantMessage, TextBlock
+from copilot import CopilotClient
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 from wandb.sdk.data_types.trace_tree import Trace
@@ -51,6 +55,7 @@ class AICaller:
         logger: Optional[CustomLogger] = None,
         generate_log_files: bool = True,
         claude_code: bool = False,
+        copilot: bool = False,
         task_id: int = None,
     ):
         """
@@ -64,6 +69,7 @@ class AICaller:
         # Apply nest_asyncio to allow nested event loops
         nest_asyncio.apply()
         self.claude_code = claude_code
+        self.copilot = copilot
         self.model = model
         self.api_base = api_base
         self.enable_retry = enable_retry
@@ -78,7 +84,7 @@ class AICaller:
         self.logger = logger or CustomLogger.get_logger(f"{__name__} - {caller_name}", task_id, os.path.basename(test_file) if test_file else None, generate_log_files=generate_log_files)
 
     @conditional_retry  # You can access self.enable_retry here
-    async def call_model(self, prompt: dict, stream=False):
+    async def call_model(self, prompt: dict, stream=True):
         """
         Call the language model with the provided prompt and retrieve the response.
 
@@ -94,6 +100,8 @@ class AICaller:
         if "system" not in prompt or "user" not in prompt:
             raise KeyError("The prompt dictionary must contain 'system' and 'user' keys.")
         
+        if self.copilot:
+            return await self._call_copilot(prompt)
         # Check if we should use Claude Code
         if self.claude_code:
             return asyncio.run(self._call_claude_code(prompt, caller_name))
@@ -141,6 +149,7 @@ class AICaller:
         try:
             self.logger.info(f"📣 Calling LLM from {caller_name}() with prompt \n\n\n {prompt['user']}")
             response = await litellm.acompletion(**completion_params)
+            # response = litellm.completion(**completion_params)
         except Exception as e:
             self.logger.error(f"Error calling LLM model: {e}")
             raise e
@@ -149,7 +158,7 @@ class AICaller:
             chunks = []
             self.logger.info("Streaming results from LLM model...")
             try:
-                async for chunk in response:
+                for chunk in response:
                     print(chunk.choices[0].delta.content or "", end="", flush=True)
                     chunks.append(chunk)
                     # Optional: Delay to simulate more 'natural' response pacing
@@ -203,6 +212,37 @@ class AICaller:
 
         # Returns: Response, Prompt token count, and Completion token count
         return content, prompt_tokens, completion_tokens
+
+    async def _call_copilot(self, prompt: dict):
+        copilot_config = {
+            # "on_permission_request": lambda request, invocation: PermissionRequestResult(kind="denied-interactively-by-user"),
+            "system_message": {'content': prompt['system'], 'mode': 'append'},
+            "on_permission_request": PermissionHandler.approve_all,
+            "model": self.model,
+            "reasoning_effort": "high",
+        }
+        input_tokens = 0
+        output_tokens = 0
+        async with CopilotClient() as client:
+
+            session = await client.create_session(**copilot_config)
+
+            def on_event(event: SessionEvent):
+                nonlocal input_tokens, output_tokens
+                if event.type == SessionEventType.ASSISTANT_USAGE:
+                    input_tokens += event.data.input_tokens if event.data.input_tokens != None else 0
+                    output_tokens += event.data.output_tokens if event.data.output_tokens != None else 0
+                if event.type.value == 'tool.execution_start':
+                    print(f"Tool called for some reasons: {event.data}")
+
+            session.on(on_event)
+            reply = await session.send_and_wait(prompt=prompt.get("user", ""), timeout=600)
+            if reply == None:
+                return "???", 0, 0
+
+            await session.disconnect()
+
+            return reply.data.content, input_tokens, output_tokens
 
     async def _call_claude_code(self, prompt: dict, caller_name: str):
         """

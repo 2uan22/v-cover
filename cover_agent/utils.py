@@ -233,6 +233,16 @@ def parse_args_full_repo(settings: Dynaconf) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--copilot",
+        action="store_true",
+        help="Whether the tool should use the copilot cli for generating tests",
+    )
+    parser.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Whether the tool should use the claude code cli for generating tests",
+    )
+    parser.add_argument(
         "--project-language",
         required=True,
         default=settings.get("project_language"),

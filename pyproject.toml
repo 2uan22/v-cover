@@ -12,7 +12,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
+python = ">=3.11,<3.14"
 jinja2 = "^3.1.5"
 beautifulsoup4 = "^4.13.3"
 poetry-dynamic-versioning = "^1.7.1"
@@ -33,6 +33,7 @@ tiktoken = "^0.8.0"
 numpy = "^1.26.4"   # Note: Earlier version have incompatibility issues with google-cloud-aiplatform
 dynaconf = "^3.2.10"
 wandb = "^0.17.9"
+github-copilot-sdk = "^0.2.2"
 
 # LSP Dependencies
 grep_ast = "^0.3.3"

@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import shutil
 import sys
@@ -37,7 +38,7 @@ class CoverAgent:
         task_id: int = None,
         agent_completion: AgentCompletionABC = None,
         # built_tool_adapter: Optional[BuiltToolAdapterABC] = None,
-        logger: Optional[CustomLogger] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         """
         Initialize the CoverAgent instance.
@@ -175,7 +176,7 @@ class CoverAgent:
         agent_completion: AgentCompletionABC = None,
         # built_tool_adapter: Optional[BuiltToolAdapterABC] = None,
         semaphore: asyncio.Semaphore = None,
-        logger: Optional[CustomLogger] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         '''
         factory method to hanlde two phase __init__ method and async _setup method
@@ -200,6 +201,7 @@ class CoverAgent:
             "record_mode": True,
             "generate_log_files": self.generate_log_files,
             "task_id": self.task_id,
+            "copilot": self.config.copilot,
             "claude_code": self.config.claude_code,
         }
         if self.config.record_mode:
@@ -324,8 +326,10 @@ class CoverAgent:
             self.accepted_tests_per_iteration.append(num_accepted)
 
             # Insert results into database
-            if self.has_test_db():
+            if self.has_test_db() and test_results:
                 for result in test_results:
+                    if result == None:
+                        continue
                     result["prompt"] = self.test_gen.prompt
                     self.test_db.insert_attempt(result)
 

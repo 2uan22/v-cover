@@ -89,6 +89,8 @@ class CoverAgentConfig:
     look_for_oldest_unchanged_test_file: bool
     project_language: str
     test_command_original: Optional[str] = None
+    copilot: bool = False
+    claude_code: bool = False
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> "CoverAgentConfig":
@@ -132,6 +134,8 @@ class CoverAgentConfig:
             max_test_files_allowed_to_analyze=args.max_test_files_allowed_to_analyze,
             look_for_oldest_unchanged_test_file=args.look_for_oldest_unchanged_test_file,
             project_language=args.project_language,
+            claude_code=args.claude_code,
+            copilot=args.copilot,
         )
 
     @classmethod
@@ -179,6 +183,8 @@ class CoverAgentConfig:
             "max_test_files_allowed_to_analyze": default_config.get("max_test_files_allowed_to_analyze"),
             "look_for_oldest_unchanged_test_file": default_config.get("look_for_oldest_unchanged_test_file"),
             "project_language": default_config.get("project_language"),
+            "claude_code": default_config.get("claude_code"),
+            "copilot": default_config.get("copilot"),
         }
 
         # CLI overrides default settings

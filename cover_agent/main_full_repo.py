@@ -65,7 +65,7 @@ async def process_test_file(
         generate_log_files = not args.suppress_log_files
         api_base = getattr(args, "api_base", "")
 
-        ai_caller = AICaller(task_id=task_id, test_file=str(test_file), model=args.model, api_base=api_base, generate_log_files=generate_log_files)
+        ai_caller = AICaller(task_id=task_id, test_file=str(test_file), model=args.model, api_base=api_base, generate_log_files=generate_log_files, copilot=args.copilot)
         # Analyze the test file against the context files
         logger.info(f"\nAnalyzing test file against context files...")
         if context_files != None:
