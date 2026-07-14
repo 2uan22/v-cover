@@ -12,6 +12,10 @@ Additional guidelines:
 - Brainstorm a list of diverse and meaningful test cases you think will be necessary to fully validate the correctness and functionality of the code, and achieve 100% code coverage.
 - After each individual test has been added, review all tests to ensure they cover the full range of scenarios, including how to handle exceptions or errors.
 - If the original test file contains a test suite, assume that each generated test will be a part of the same suite. Ensure that the new tests are consistent with the existing test suite in terms of style, naming conventions, and structure.
+- Each `wiring_codes` entry MUST include a `relevant_line_number_to_insert_wiring_after` pointing to an actual line in the test file. Without it, the wiring code is discarded and your test will have unresolved mocks. Study the numbered test file carefully to determine the correct line numbers.
+- **One test per `test_code`**: Each `SingleTest` in `new_tests` must contain exactly ONE test method. If you need 3 tests, output 3 items in `new_tests`, not 3 methods inside one `test_code`. This allows each test to be validated independently.
+- **Imports for wiring**: Every annotation or class used in `wiring_codes` (like `@Mock`, `@InjectMocks`, `MockitoAnnotations`) needs a corresponding import in `new_imports_code`. If `wiring_codes` uses `@Mock`, then `new_imports_code` must include `import org.mockito.Mock;`.
+- **DRY test data**: Avoid repeating the same object construction logic in every test method. If multiple tests need the same test data (e.g., creating a Member with a Citizen), define a shared helper method (like `private Member createDefaultMember()`) and insert it via a `wiring_codes` entry at a stable line number (after setUp or before the first test). Each `@Test` method should call the helper instead of rebuilding objects from scratch. This keeps the test file concise and readable.
 
 ## Source File
 Here is the source file that you will be writing tests against, called `{{ source_file_name }}`.
@@ -73,14 +77,19 @@ class SingleTest(BaseModel):
 {%- else %}
     test_name: str = Field(description=" A short unique test name, that should reflect the test objective")
 {%- endif %}
-    test_code: str = Field(description="A new '{{ testing_framework }}' test function that extends the existing test suite, and tests the behavior described in 'test_behavior'. The test should be written like it's part of the existing test suite, if there is one, and it can use existing helper functions, setup, or teardown code. Don't include new imports here, use 'new_imports_code' section instead.")
-    new_imports_code: str = Field(description="New imports that are required to run the new test function, and are not already imported in the test file. Give an empty string if no new imports are required. If relevant, add new imports as 'import ...' lines.")
+    test_code: str = Field(description="**EXACTLY ONE** '{{ testing_framework }}' test method — a single @Test function. Do NOT include multiple test methods here; if you need more tests, add them as separate entries in 'new_tests' above. The test should be written like it's part of the existing test suite, and tests the behavior described in 'test_behavior'. The test should be written like it's part of the existing test suite, if there is one, and it can use existing helper functions, setup, or teardown code. You may include private helper methods before the @Test method, but never multiple @Test methods. Don't include new imports here, use 'new_imports_code' section instead. Don't include @Mock field declarations, @InjectMocks, or setUp() configuration here — use 'wiring_codes' section instead, then reference those fields in this test code.")
+    new_imports_code: str = Field(description="New imports that are required to run the new test function AND by the wiring_codes (e.g., if wiring_codes uses @Mock, add 'import org.mockito.Mock;' here), and are not already imported in the test file. Give an empty string if no new imports are required. If relevant, add new imports as 'import ...' lines.")
+    wiring_codes: List[WiringCode] = Field(min_items=0, max_items=20, description="A list of new wiring code to insert into the existing test suite, aiming to help the test_code that are being appended. There can be multiple points of wiring code, hence List[WiringCode], for example one @ExtendWith(MockitoExtension.class) before test class, one to add @InjectMock to the class under test, one for the setup() method, one to insert a shared data-factory method (e.g. `private Member createDefaultMember() { ... }`) at a fixed line number so all tests reuse it. If this field is omitted or empty, no wiring code will be inserted and the test may fail due to missing mocks.")
     test_tags: str = Field(description="A single label that best describes the test, out of: ['happy path', 'edge case','other']")
+
+class WiringCode(BaseModel):
+    wiring_code: str = Field(description="**REQUIRED.** Raw lines of code to insert — ONLY the specific lines, NOT method/class wrappers. For setUp() body code: just write 'MockitoAnnotations.openMocks(this);' NOT '@BeforeEach\\nvoid setUp() {\\n...'. For @Mock fields: just write '@Mock\\nprivate Foo foo;'. For helper/factory methods, write the complete method signature + body (e.g. the full `private Member createDefaultMember() { ... }`). The system inserts these lines at the exact line number you specify. Remember: any imports required by this wiring code must be added in `new_imports_code`")
+    relevant_line_number_to_insert_wiring_after: int = Field(description="The 1-based line number in the test file AFTER which this code should be inserted. For example: insert @Mock fields right after the class opening brace line, insert setUp() body lines after the setUp() signature line...")
 
 class NewTests(BaseModel):
     language: str = Field(description="The programming language of the source code")
     existing_test_function_signature: str = Field(description="A single line repeating a signature header of one of the existing test functions")
-    new_tests: List[SingleTest] = Field(min_items=1, max_items={{ max_tests }}, description="A list of new test functions to append to the existing test suite, aiming to increase the code coverage. Each test should run as-is, without requiring any additional inputs or setup code. Don't introduce new dependencies")
+    new_tests: List[SingleTest] = Field(min_items=1, max_items={{ max_tests }}, description="A list of new test functions to append to the existing test suite, aiming to increase the code coverage. Each test should run independently once its associated wiring_codes and imports have been inserted. The test method can reference fields and setup configured via 'wiring_codes'.")
 =====
 
 Example output:
@@ -104,11 +113,41 @@ new_tests:
   test_code: |
 {%- if language in ["python"] %}
     def ...
+{%- elif language in ["java"] %}
+    @Test
+    @DisplayName("single element list returns expected value")
+    void testSingleElementList() {
+        // exactly one test method here only
+    }
 {%- else %}
     ...
 {%- endif %}
+  wiring_codes:
+  - wiring_code: |
+{%- if language in ["java"] %}
+      @Mock
+      private CarboneService carboneService;
+{%- else %}
+      ...
+{%- endif %}
+    relevant_line_number_to_insert_wiring_after: 12
+{%- if language in ["java"] %}
+  - wiring_code: |
+      private Carbone createDefaultCarbone() {
+          Carbone carbone = new Carbone();
+          carbone.setId("carbone-123");
+          carbone.setName("Default Carbone");
+          return carbone;
+      }
+    relevant_line_number_to_insert_wiring_after: 50
+{%- endif %}
   new_imports_code: |
-    ""
+{%- if language in ["java"] %}
+    import org.mockito.Mock;
+    import org.mockito.InjectMocks;
+{%- else %}
+      ""
+{%- endif %}
   test_tags: happy path
     ...
 ```

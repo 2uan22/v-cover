@@ -182,7 +182,10 @@ async def _async_main():
     settings = get_settings().get("default")
     args = parse_args(settings)
     config = CoverAgentConfig.from_cli_args_with_defaults(args)
-    agent = await CoverAgent.create(config)
+    semaphore = asyncio.Semaphore(1)
+    if config.included_files:
+        config.all_included_files = [(f, "", "", 0, -1) for f in config.included_files]
+    agent = await CoverAgent.create(config, semaphore=semaphore)
     await agent.run()
 
 def main():

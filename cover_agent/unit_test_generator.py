@@ -188,7 +188,7 @@ class UnitTestGenerator:
             additional_instructions_text=self.additional_instructions,
             additional_includes_section=self.included_files,
             language=language,
-            test_file=self.test_code,
+            test_file="\n".join(f"{i + 1} {line}" for i, line in enumerate(self.test_code.split("\n"))),
             failed_tests_section=failed_test_runs_value,
             test_file_name=os.path.relpath(self.test_file_path, self.project_root),
             testing_framework=testing_framework,

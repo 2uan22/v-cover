@@ -2,6 +2,7 @@
 Provides Python specific instantiation of the LanguageServer class. Contains various configurations and settings specific to Python.
 """
 
+import sys
 import json
 import logging
 import os
@@ -37,8 +38,16 @@ class JediServer(LanguageServer):
         """
         Returns the initialize params for the Jedi Language Server.
         """
-        with open(os.path.join(os.path.dirname(__file__), "initialize_params.json"), "r") as f:
-            d = json.load(f)
+        if getattr(sys, "frozen", False):
+            with open(
+                os.path.join(sys._MEIPASS, "cover_agent/lsp_logic/multilspy/language_servers/jedi_language_server/initialize_params.json"), "r"
+            ) as f:
+                d = json.load(f)
+        else:
+            with open(
+                os.path.join(os.path.dirname(__file__), "initialize_params.json"), "r"
+            ) as f:
+                d = json.load(f)
 
         del d["_description"]
 

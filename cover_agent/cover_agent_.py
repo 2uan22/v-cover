@@ -313,13 +313,17 @@ class CoverAgent:
         self.log_coverage()
         self.logger.info("Starting test generation and validation.")
         generated_tests_dict = await self.test_gen.generate_tests(failed_test_runs, language, test_framework, coverage_report)
+        if isinstance(generated_tests_dict, dict):
+            new_tests = generated_tests_dict.get("new_tests", [])
+        else:
+            new_tests = generated_tests_dict or []
 
-        num_generated_tests_dict = len(generated_tests_dict.get("new_tests", []))
+        num_generated_tests_dict = len(new_tests)
         self.generated_tests_per_iteration.append(num_generated_tests_dict)
 
         try:
             test_results = [
-                await self.test_validator.validate_test(test) for test in generated_tests_dict.get("new_tests", [])
+                await self.test_validator.validate_test(test) for test in new_tests
             ]
 
             num_accepted = sum(1 for r in test_results if r.get("status") == "PASS")

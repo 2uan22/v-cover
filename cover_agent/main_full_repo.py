@@ -51,14 +51,14 @@ async def process_test_file(
             logger = CustomLogger.get_logger(__name__, task_id, os.path.basename(test_file), generate_log_files=False)
         logger.info(f"Test file is: {test_file}")
 
-        context = await context_helper.find_test_file_context(Path(test_file))
+        context = await context_helper.find_test_file_context(str(test_file))
         if context == None:
             context = []
         print("Context files for test file '{}':\n{}".format(test_file, "".join(f"{f}\n" for f in context)))
         # Find the context files for the test file
-        all_context: list[tuple] = await context_helper.find_all_context(Path(test_file))
+        all_context: list[tuple] = await context_helper.find_all_context(str(test_file))
         deduped_context = remove_duplicate_included_files(all_context)
-        context_files: set[Path] = { context_file for context_file, _, _, _, _ in deduped_context }
+        context_files: set[str] = { str(context_file) for context_file, _, _, _, _ in deduped_context }
         logger.info("All context files:\n{}".format("".join(f"{f}\n" for f in deduped_context)))
         logger.info("Set of context file paths\n{}".format("".join(f"{f}\n" for f in context_files)))
 
@@ -70,22 +70,17 @@ async def process_test_file(
         logger.info(f"\nAnalyzing test file against context files...")
         if context_files != None:
             source_file, context_files_include, context_input_token, context_output_token = await context_helper.analyze_context(
-                Path(test_file), context_files, ai_caller
+                str(test_file), list(context_files), ai_caller
             )
         else:
             source_file, context_files_include, context_input_token, context_output_token = await context_helper.analyze_context(
-                Path(test_file), context, ai_caller
+                str(test_file), context, ai_caller
             )
 
-        # print("[=================================================]")
-        # print("source file is:")
-        # print(source_file)
         all_context_no_test_no_source = []
         for context_file in deduped_context:
             if Path(context_file[0]).resolve() != Path(test_file).resolve() and Path(context_file[0]).resolve() != Path(source_file).resolve():
                 all_context_no_test_no_source.append(context_file)
-        # print("context file are:")
-        # print(all_context_no_test)
         total_input_token += context_input_token
         total_output_token += context_output_token
         target_reached = False
@@ -119,7 +114,7 @@ async def process_test_file(
             return (test_file, total_input_token, total_output_token, target_reached, generated_tests, accepted_tests, False, "No source file found")
     except Exception as e:
         logger.error(f"Error processing: {e}")
-        raise e
+        # raise e
         return (test_file, total_input_token, total_output_token, False, [], [], False, f"Processing error: {str(e)}")
 
 

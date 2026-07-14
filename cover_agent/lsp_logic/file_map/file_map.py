@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -34,7 +35,10 @@ class FileMap:
             self.fname_rel = os.path.relpath(fname_full_path, project_base_path)
         else:
             self.fname_rel = fname_full_path
-        self.main_queries_path = Path(__file__).parent.parent / "queries"
+        if getattr(sys, "frozen", False):
+            self.main_queries_path = Path(sys._MEIPASS) / Path("cover_agent/lsp_logic/file_map/queries")
+        else:
+            self.main_queries_path = Path(__file__).parent.parent / "queries"
         if not os.path.exists(fname_full_path):
             raise FileNotFoundError(f"File {fname_full_path} does not exist")
         with open(fname_full_path, "r") as f:
@@ -193,7 +197,10 @@ class FileMap:
         smallest_range = min(potential, key=lambda r: r[1] - r[0])
         return smallest_range
 
-    def get_query_results_in_range(self, start_line: int = 0, end_line: int = -1) -> tuple[list[dict], list] | None:
+    def get_query_results_in_range(self, start_line: int = 0, end_line: int = -1) -> Optional[tuple[
+        list[dict],
+        list[tuple[Node, str]]
+    ]]:
         '''
             get tree-sitter query results from a certain range
         '''

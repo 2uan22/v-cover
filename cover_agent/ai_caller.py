@@ -84,7 +84,7 @@ class AICaller:
         self.logger = logger or CustomLogger.get_logger(f"{__name__} - {caller_name}", task_id, os.path.basename(test_file) if test_file else None, generate_log_files=generate_log_files)
 
     @conditional_retry  # You can access self.enable_retry here
-    async def call_model(self, prompt: dict, stream=True):
+    async def call_model(self, prompt: dict, stream=False):
         """
         Call the language model with the provided prompt and retrieve the response.
 
@@ -143,7 +143,7 @@ class AICaller:
 
         # API base exception for OpenAI Compatible, Ollama, and Hugging Face models
         if "ollama" in self.model or "huggingface" in self.model or self.model.startswith("openai/"):
-            print(f"model: {self.model}, api_base: {self.api_base}")
+            # print(f"model: {self.model}, api_base: {self.api_base}")
             completion_params["api_base"] = self.api_base
 
         try:
@@ -158,7 +158,7 @@ class AICaller:
             chunks = []
             self.logger.info("Streaming results from LLM model...")
             try:
-                for chunk in response:
+                async for chunk in response:
                     print(chunk.choices[0].delta.content or "", end="", flush=True)
                     chunks.append(chunk)
                     # Optional: Delay to simulate more 'natural' response pacing
@@ -182,7 +182,7 @@ class AICaller:
             prompt_tokens = int(usage.prompt_tokens)
             completion_tokens = int(usage.completion_tokens)
             self.logger.info(f"Printing results from LLM model... \n {content}")
-            self.logger.info(f"Printed results costed: {prompt_tokens} - {completion_tokens}")
+            # self.logger.info(f"Printed results costed: {prompt_tokens} - {completion_tokens}")
 
         if "WANDB_API_KEY" in os.environ:
             try:

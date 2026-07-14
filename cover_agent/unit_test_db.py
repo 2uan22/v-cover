@@ -1,3 +1,4 @@
+import json
 import argparse
 
 from datetime import datetime
@@ -23,6 +24,7 @@ class UnitTestGenerationAttempt(Base):
     stdout = Column(Text)
     test_code = Column(Text)
     imports = Column(Text)
+    wiring_codes = Column(Text)
     language = Column(String)
     prompt = Column(Text)
     source_file = Column(Text)
@@ -47,6 +49,7 @@ class UnitTestDB:
                 stdout=test_result.get("stdout"),
                 test_code=test_result.get("test", {}).get("test_code", ""),
                 imports=test_result.get("test", {}).get("new_imports_code", ""),
+                wiring_codes=json.dumps(test_result.get("test", {}).get("wiring_codes", [])),
                 language=test_result.get("language"),
                 prompt=test_result.get("prompt"),
                 source_file=test_result.get("source_file"),
@@ -78,6 +81,7 @@ class UnitTestDB:
                 "stdout": attempt.stdout or "",
                 "test_code": attempt.test_code or "",
                 "imports": attempt.imports or "",
+                "wiring_codes": attempt.wiring_codes or "",
                 "language": attempt.language,
                 "prompt": attempt.prompt,
                 "source_file": attempt.source_file,

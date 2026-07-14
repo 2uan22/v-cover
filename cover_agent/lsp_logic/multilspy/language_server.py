@@ -773,7 +773,13 @@ class LanguageServer:
 
         return ret
 
-    async def get_direct_context(self, captures: list[tuple[Node, str]], language: str, project_dir: str, rel_file: str):
+    async def get_direct_context(
+        self,
+        captures: list[tuple[Node, str]],
+        language: str,
+        project_dir: str,
+        rel_file: str
+    ) -> tuple[set[str], set[str]]:
         target_file = str(os.path.join(project_dir, rel_file))
         absolute_file = str(os.path.abspath(rel_file))
         skip_found_symbols = True
@@ -785,12 +791,12 @@ class LanguageServer:
             if name_symbol in context_symbols and skip_found_symbols:
                 continue
             # getting direct context - which files are referenced by the target file
-            print("get direct context for symbol: ", name_symbol)
+            # print(f"get direct context for symbol {name_symbol} at ({ref[0].start_point[0]}, {ref[0].start_point[1]}) in file {rel_file}")
             try:
+                symbol_definition = []
                 symbol_definition = await self.request_definition(
-                    absolute_file, line=ref[0].start_point[0], column=ref[0].start_point[1]
+                    rel_file, line=ref[0].start_point[0], column=ref[0].start_point[1]
                 )
-                print(f"symbol_definition: {symbol_definition}")
                 # sleep(0.01)
             except Exception as e:
                 print(f"Error requesting definition for {name_symbol}: {e}")
@@ -863,19 +869,19 @@ class LanguageServer:
             try:
                 # Send a "textDocument/definition" request to the LSP server.
                 symbol_definitions = await self.request_definition(
-                    absolute_file, line=result['start'], column=result['column']
+                    rel_file, line=result['start'], column=result['column']
                 )
                 # sleep(0.01)
                 if "method.interface" in symbol_scope:
                     symbol_definitions = await self.request_implementation(
-                        absolute_file, line=result['start'], column=result['column']
+                        rel_file, line=result['start'], column=result['column']
                     )
                 #     print("symbol definitions: ", symbol_definitions)
 
                 
                 # sleep(0.01)
             except Exception as e:
-                print(f"Error requesting definition for {symbol_name}: {e}")
+                # print(f"Error requesting definition for {symbol_name}: {e}")
                 symbol_definitions = []
 
             # Process the list of definitions returned by the LSP server.

@@ -78,6 +78,7 @@ class UnitTestValidator:
         # Class variables
         self.relevant_line_number_to_insert_imports_after = None
         self.relevant_line_number_to_insert_tests_after = None
+        self.inserted_wiring_code_blocks = []
         self.test_headers_indentation = None
         self.project_root = project_root
         self.source_file_path = source_file_path
@@ -417,6 +418,7 @@ class UnitTestValidator:
                 # We asked the model that each generated test should be a self-contained independent test
                 test_code = generated_test.get("test_code", "").rstrip()
                 additional_imports = generated_test.get("new_imports_code", "").strip()
+                wiring_codes = generated_test.get("wiring_codes", [])
                 if additional_imports and additional_imports[0] == '"' and additional_imports[-1] == '"':
                     additional_imports = additional_imports.strip('"')
 
@@ -459,11 +461,51 @@ class UnitTestValidator:
                             + additional_imports_lines
                             + original_content_lines[relevant_line_number_to_insert_imports_after:]
                         )
+                    # print("inserted line count = ", inserted_lines_count)
+                    # print("cause additional_imports_lines = ")
+                    # print(additional_imports_lines)
 
+                    # Insert mock, if there are any
+                    wiring_code_blocks = []
+                    if wiring_codes:
+                        for line in sorted(wiring_codes, key=lambda x: int(str(x.get("relevant_line_number_to_insert_wiring_after", 0)).strip())):
+                            line_number = int(str(line.get("relevant_line_number_to_insert_wiring_after", 0)).strip())
+                            wiring_code = line.get("wiring_code", "").strip()
+                            if line_number > 0 and wiring_code not in self.inserted_wiring_code_blocks:
+                                wiring_code_blocks.append((line_number, wiring_code))
+
+                    # print("============WIRING================")
+                    # print(wiring_code_blocks)
+                    # print("==================================")
+                    # print("inserted line count = ", inserted_lines_count)
+
+                    # with each generation attempt, check which line to insert import and code
+                    # then the model generates a few new_tests that contains the import and test code.
+                    # Import should have no problem even if it's offset-ed
+                    # Test code 
+
+                    inserted_wiring_lines_count = 0
+                    if wiring_code_blocks:
+                        for relevant_line_number_to_insert_wiring_after, wiring_code_block in wiring_code_blocks:
+                            wiring_lines = wiring_code_block.split("\n")
+                            # print("lines = ", wiring_lines)
+                            insert_at = relevant_line_number_to_insert_wiring_after + inserted_lines_count + inserted_wiring_lines_count
+                            # print("updated_wiring_insertion_point = ", insert_at)
+                            original_content_lines = (
+                                original_content_lines[:insert_at]
+                                + wiring_lines
+                                + original_content_lines[insert_at:]
+                            )
+                            inserted_wiring_lines_count += len(wiring_lines)
+                            # print("updated_wiring_insertion_point = ", insert_at)
+                            # print("----------")
+
+                    # print("!!!!!!!!!!!!")
+                    # print("inserted wiring line count = ", inserted_wiring_lines_count)
                     # Offset the test insertion point by however many lines we just inserted
                     updated_test_insertion_point = relevant_line_number_to_insert_tests_after
-                    if inserted_lines_count > 0:
-                        updated_test_insertion_point += inserted_lines_count
+                    updated_test_insertion_point += inserted_lines_count
+                    updated_test_insertion_point += inserted_wiring_lines_count
 
                     # Now insert the test code at 'updated_test_insertion_point'
                     test_code_lines = test_code_indented.split("\n")
@@ -605,6 +647,10 @@ class UnitTestValidator:
                     self.relevant_line_number_to_insert_tests_after += len(
                         additional_imports_lines
                     )  # this is important, otherwise the next test will be inserted at the wrong line
+                    self.relevant_line_number_to_insert_tests_after += inserted_wiring_lines_count
+                    # same here, assumption being that all the imports are highest, then wiring code, then test, which may not be true for languages other than java
+                    for wiring_code_block, _ in wiring_code_blocks:
+                        self.inserted_wiring_code_blocks.append(wiring_code_block)
 
                     for key in new_coverage_percentages:
                         if (

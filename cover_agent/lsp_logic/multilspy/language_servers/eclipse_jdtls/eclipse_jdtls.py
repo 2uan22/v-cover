@@ -10,19 +10,24 @@ import os
 import pathlib
 import shutil
 import stat
+import sys
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from cover_agent.lsp_logic.multilspy.multilspy_logger import MultilspyLogger
 from cover_agent.lsp_logic.multilspy.language_server import LanguageServer
-from cover_agent.lsp_logic.multilspy.lsp_protocol_handler.server import ProcessLaunchInfo
-from cover_agent.lsp_logic.multilspy.lsp_protocol_handler.lsp_types import InitializeParams
+from cover_agent.lsp_logic.multilspy.lsp_protocol_handler.server import (
+    ProcessLaunchInfo,
+)
+from cover_agent.lsp_logic.multilspy.lsp_protocol_handler.lsp_types import (
+    InitializeParams,
+)
 from cover_agent.lsp_logic.multilspy.multilspy_config import MultilspyConfig
 from cover_agent.lsp_logic.multilspy.multilspy_settings import MultilspySettings
 from cover_agent.lsp_logic.multilspy.multilspy_utils import FileUtils
 from cover_agent.lsp_logic.multilspy.multilspy_utils import PlatformUtils
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 
 @dataclasses.dataclass
@@ -46,7 +51,12 @@ class EclipseJDTLS(LanguageServer):
     The EclipseJDTLS class provides a Java specific implementation of the LanguageServer class
     """
 
-    def __init__(self, config: MultilspyConfig, logger: MultilspyLogger, repository_root_path: str):
+    def __init__(
+        self,
+        config: MultilspyConfig,
+        logger: MultilspyLogger,
+        repository_root_path: str,
+    ):
         """
         Creates a new EclipseJDTLS instance initializing the language server settings appropriately.
         This class is not meant to be instantiated directly. Use LanguageServer.create() instead.
@@ -67,7 +77,12 @@ class EclipseJDTLS(LanguageServer):
 
         # shared_cache_location is the global cache used by Eclipse JDTLS across all workspaces
         shared_cache_location = str(
-            PurePath(MultilspySettings.get_global_cache_directory(), "lsp", "EclipseJDTLS", "sharedIndex")
+            PurePath(
+                MultilspySettings.get_global_cache_directory(),
+                "lsp",
+                "EclipseJDTLS",
+                "sharedIndex",
+            )
         )
 
         jre_path = self.runtime_dependency_paths.jre_path
@@ -80,7 +95,9 @@ class EclipseJDTLS(LanguageServer):
         data_dir = str(PurePath(ws_dir, "data_dir"))
         jdtls_config_path = str(PurePath(ws_dir, "config_path"))
 
-        jdtls_readonly_config_path = self.runtime_dependency_paths.jdtls_readonly_config_path
+        jdtls_readonly_config_path = (
+            self.runtime_dependency_paths.jdtls_readonly_config_path
+        )
 
         if not os.path.exists(jdtls_config_path):
             shutil.copytree(jdtls_readonly_config_path, jdtls_config_path)
@@ -95,7 +112,10 @@ class EclipseJDTLS(LanguageServer):
             assert os.path.exists(static_path), static_path
 
         # TODO: Add "self.runtime_dependency_paths.jre_home_path"/bin to $PATH as well
-        proc_env = {"syntaxserver": "false", "JAVA_HOME": self.runtime_dependency_paths.jre_home_path}
+        proc_env = {
+            "syntaxserver": "false",
+            "JAVA_HOME": self.runtime_dependency_paths.jre_home_path,
+        }
         proc_cwd = repository_root_path
         cmd = " ".join(
             [
@@ -134,34 +154,73 @@ class EclipseJDTLS(LanguageServer):
         )
 
         self.service_ready_event = asyncio.Event()
+        self.project_ready_event = asyncio.Event()
         self.intellicode_enable_command_available = asyncio.Event()
         self.initialize_searcher_command_available = asyncio.Event()
 
-        super().__init__(config, logger, repository_root_path, ProcessLaunchInfo(cmd, proc_env, proc_cwd), "java")
+        super().__init__(
+            config,
+            logger,
+            repository_root_path,
+            ProcessLaunchInfo(cmd, proc_env, proc_cwd),
+            "java",
+        )
 
-    def setupRuntimeDependencies(self, logger: MultilspyLogger, config: MultilspyConfig) -> RuntimeDependencyPaths:
+    def setupRuntimeDependencies(
+        self, logger: MultilspyLogger, config: MultilspyConfig
+    ) -> RuntimeDependencyPaths:
         """
         Setup runtime dependencies for EclipseJDTLS.
         """
         platformId = PlatformUtils.get_platform_id()
 
-        with open(str(PurePath(os.path.dirname(__file__), "runtime_dependencies.json")), "r") as f:
-            runtimeDependencies = json.load(f)
-            del runtimeDependencies["_description"]
-
-        os.makedirs(str(PurePath(os.path.abspath(os.path.dirname(__file__)), "static")), exist_ok=True)
+        if getattr(sys, "frozen", False):
+            with open(
+                str(
+                    Path(sys._MEIPASS)
+                    / "cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/runtime_dependencies.json"
+                ),
+                "r",
+            ) as f:
+                runtimeDependencies = json.load(f)
+                del runtimeDependencies["_description"]
+            os.makedirs(
+                str(
+                    PurePath(
+                        Path(sys._MEIPASS)
+                        / "cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/static"
+                    )
+                ),
+                exist_ok=True,
+            )
+            gradle_path = str(
+                PurePath(
+                    Path(sys._MEIPASS),
+                    "cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/static/gradle-7.3.3",
+                )
+            )
+        else:
+            with open(
+                str(PurePath(os.path.dirname(__file__), "runtime_dependencies.json")),
+                "r",
+            ) as f:
+                runtimeDependencies = json.load(f)
+                del runtimeDependencies["_description"]
+            os.makedirs(
+                str(PurePath(os.path.abspath(os.path.dirname(__file__)), "static")),
+                exist_ok=True,
+            )
+            gradle_path = str(
+                PurePath(
+                    os.path.abspath(os.path.dirname(__file__)),
+                    "static/gradle-7.3.3",
+                )
+            )
 
         # assert platformId.value in [
         #     "linux-x64",
         #     "win-x64",
         # ], "Only linux-x64 platform is supported for in multilspy at the moment"
-
-        gradle_path = str(
-            PurePath(
-                os.path.abspath(os.path.dirname(__file__)),
-                "static/gradle-7.3.3",
-            )
-        )
 
         if not os.path.exists(gradle_path):
             FileUtils.download_and_extract_archive(
@@ -174,15 +233,32 @@ class EclipseJDTLS(LanguageServer):
         assert os.path.exists(gradle_path)
 
         dependency = runtimeDependencies["vscode-java"][platformId.value]
-        vscode_java_path = str(
-            PurePath(os.path.abspath(os.path.dirname(__file__)), "static", dependency["relative_extraction_path"])
-        )
+        if getattr(sys, "frozen", False):
+            vscode_java_path = str(
+                PurePath(
+                    Path(sys._MEIPASS)
+                    / "cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/static",
+                    dependency["relative_extraction_path"],
+                )
+            )
+        else:
+            vscode_java_path = str(
+                PurePath(
+                    os.path.abspath(os.path.dirname(__file__)),
+                    "static",
+                    dependency["relative_extraction_path"],
+                )
+            )
         os.makedirs(vscode_java_path, exist_ok=True)
         jre_home_path = str(PurePath(vscode_java_path, dependency["jre_home_path"]))
         jre_path = str(PurePath(vscode_java_path, dependency["jre_path"]))
         lombok_jar_path = str(PurePath(vscode_java_path, dependency["lombok_jar_path"]))
-        jdtls_launcher_jar_path = str(PurePath(vscode_java_path, dependency["jdtls_launcher_jar_path"]))
-        jdtls_readonly_config_path = str(PurePath(vscode_java_path, dependency["jdtls_readonly_config_path"]))
+        jdtls_launcher_jar_path = str(
+            PurePath(vscode_java_path, dependency["jdtls_launcher_jar_path"])
+        )
+        jdtls_readonly_config_path = str(
+            PurePath(vscode_java_path, dependency["jdtls_readonly_config_path"])
+        )
         if not all(
             [
                 os.path.exists(vscode_java_path),
@@ -197,7 +273,7 @@ class EclipseJDTLS(LanguageServer):
                 logger, dependency["url"], vscode_java_path, dependency["archiveType"]
             )
 
-        os.chmod(jre_path, stat.S_IEXEC)
+        # os.chmod(jre_path, stat.S_IEXEC)
 
         assert os.path.exists(vscode_java_path)
         assert os.path.exists(jre_home_path)
@@ -207,12 +283,32 @@ class EclipseJDTLS(LanguageServer):
         assert os.path.exists(jdtls_readonly_config_path)
 
         dependency = runtimeDependencies["intellicode"]["platform-agnostic"]
-        intellicode_directory_path = str(
-            PurePath(os.path.abspath(os.path.dirname(__file__)), "static", dependency["relative_extraction_path"])
-        )
+        if getattr(sys, "frozen", False):
+            intellicode_directory_path = str(
+                # PurePath(os.path.abspath(os.path.dirname(sys._MEIPASS)), "static", dependency["relative_extraction_path"])
+                PurePath(
+                    Path(sys._MEIPASS)
+                    / "cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/static",
+                    dependency["relative_extraction_path"],
+                )
+            )
+        else:
+            intellicode_directory_path = str(
+                PurePath(
+                    os.path.abspath(os.path.dirname(__file__)),
+                    "static",
+                    dependency["relative_extraction_path"],
+                )
+            )
         os.makedirs(intellicode_directory_path, exist_ok=True)
-        intellicode_jar_path = str(PurePath(intellicode_directory_path, dependency["intellicode_jar_path"]))
-        intellisense_members_path = str(PurePath(intellicode_directory_path, dependency["intellisense_members_path"]))
+        intellicode_jar_path = str(
+            PurePath(intellicode_directory_path, dependency["intellicode_jar_path"])
+        )
+        intellisense_members_path = str(
+            PurePath(
+                intellicode_directory_path, dependency["intellisense_members_path"]
+            )
+        )
         if not all(
             [
                 os.path.exists(intellicode_directory_path),
@@ -221,7 +317,10 @@ class EclipseJDTLS(LanguageServer):
             ]
         ):
             FileUtils.download_and_extract_archive(
-                logger, dependency["url"], intellicode_directory_path, dependency["archiveType"]
+                logger,
+                dependency["url"],
+                intellicode_directory_path,
+                dependency["archiveType"],
             )
 
         assert os.path.exists(intellicode_directory_path)
@@ -244,8 +343,22 @@ class EclipseJDTLS(LanguageServer):
         Returns the initialize parameters for the EclipseJDTLS server.
         """
         # Look into https://github.com/eclipse/eclipse.jdt.ls/blob/master/org.eclipse.jdt.ls.core/src/org/eclipse/jdt/ls/core/internal/preferences/Preferences.java to understand all the options available
-        with open(str(PurePath(os.path.dirname(__file__), "initialize_params.json")), "r") as f:
-            d: InitializeParams = json.load(f)
+        if getattr(sys, "frozen", False):
+            with open(
+                str(
+                    PurePath(
+                        Path(sys._MEIPASS)
+                        / "cover_agent/lsp_logic/multilspy/language_servers/eclipse_jdtls/initialize_params.json"
+                    )
+                ),
+                "r",
+            ) as f:
+                d: InitializeParams = json.load(f)
+        else:
+            with open(
+                str(PurePath(os.path.dirname(__file__), "initialize_params.json")), "r"
+            ) as f:
+                d: InitializeParams = json.load(f)
 
         del d["_description"]
 
@@ -261,8 +374,13 @@ class EclipseJDTLS(LanguageServer):
         assert d["rootUri"] == "pathlib.Path(repository_absolute_path).as_uri()"
         d["rootUri"] = pathlib.Path(repository_absolute_path).as_uri()
 
-        assert d["initializationOptions"]["workspaceFolders"] == "[pathlib.Path(repository_absolute_path).as_uri()]"
-        d["initializationOptions"]["workspaceFolders"] = [pathlib.Path(repository_absolute_path).as_uri()]
+        assert (
+            d["initializationOptions"]["workspaceFolders"]
+            == "[pathlib.Path(repository_absolute_path).as_uri()]"
+        )
+        d["initializationOptions"]["workspaceFolders"] = [
+            pathlib.Path(repository_absolute_path).as_uri()
+        ]
 
         assert (
             d["workspaceFolders"]
@@ -279,46 +397,109 @@ class EclipseJDTLS(LanguageServer):
         bundles = [self.runtime_dependency_paths.intellicode_jar_path]
         d["initializationOptions"]["bundles"] = bundles
 
-        assert d["initializationOptions"]["settings"]["java"]["configuration"]["runtimes"] == [
-            {"name": "JavaSE-17", "path": "static/vscode-java/extension/jre/17.0.8.1-linux-x86_64", "default": True}
-        ]
+        # assert d["initializationOptions"]["settings"]["java"]["configuration"]["runtimes"] == [
+        #     {"name": "JavaSE-17", "path": "static/vscode-java/extension/jre/21.0.11-linux-x86_64", "default": True}
+        # ]
         d["initializationOptions"]["settings"]["java"]["configuration"]["runtimes"] = [
-            {"name": "JavaSE-17", "path": self.runtime_dependency_paths.jre_home_path, "default": True}
+            {
+                "name": "JavaSE-21",
+                "path": self.runtime_dependency_paths.jre_home_path,
+                "default": True,
+            }
         ]
 
-        for runtime in d["initializationOptions"]["settings"]["java"]["configuration"]["runtimes"]:
+        for runtime in d["initializationOptions"]["settings"]["java"]["configuration"][
+            "runtimes"
+        ]:
             assert "name" in runtime
             assert "path" in runtime
-            assert os.path.exists(
-                runtime["path"]
-            ), f"Runtime required for eclipse_jdtls at path {runtime['path']} does not exist"
+            assert os.path.exists(runtime["path"]), (
+                f"Runtime required for eclipse_jdtls at path {runtime['path']} does not exist"
+            )
 
-        assert d["initializationOptions"]["settings"]["java"]["import"]["gradle"]["home"] == "abs(static/gradle-7.3.3)"
-        d["initializationOptions"]["settings"]["java"]["import"]["gradle"][
-            "home"
-        ] = self.runtime_dependency_paths.gradle_path
+        assert (
+            d["initializationOptions"]["settings"]["java"]["import"]["gradle"]["home"]
+            == "abs(static/gradle-7.3.3)"
+        )
+        d["initializationOptions"]["settings"]["java"]["import"]["gradle"]["home"] = self.runtime_dependency_paths.gradle_path
 
-        d["initializationOptions"]["settings"]["java"]["import"]["gradle"]["java"][
-            "home"
-        ] = self.runtime_dependency_paths.jre_path
+        d["initializationOptions"]["settings"]["java"]["import"]["gradle"]["java"]["home"] = self.runtime_dependency_paths.jre_path
+
+        d["initializationOptions"]["settings"]["java"]["import"]["maven"]["enabled"] = False
+        d["initializationOptions"]["settings"]["java"]["import"]["gradle"]["enabled"] = False
+        d["initializationOptions"]["settings"]["java"]["configuration"]["updateBuildConfiguration"] = "disabled"
 
         return d
 
+    def _ensure_classpath_file(self):
+        cp_path = os.path.join(self.repository_root_path, ".classpath")
+        if os.path.exists(cp_path):
+            import xml.etree.ElementTree as ET
+
+            tree = ET.parse(cp_path)
+            root = tree.getroot()
+            existing = {
+                e.get("path") for e in root.findall(".//classpathentry[@kind='src']")
+            }
+            if "src/main/java" in existing:
+                return
+        cp_content = """<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+\t<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-21">
+\t\t<attributes>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="con" path="org.eclipse.m2e.MAVEN2_CLASSPATH_CONTAINER">
+\t\t<attributes>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="src" output="target/classes" path="src/main/java">
+\t\t<attributes>
+\t\t\t<attribute name="optional" value="true"/>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="src" output="target/test-classes" path="src/test/java">
+\t\t<attributes>
+\t\t\t<attribute name="optional" value="true"/>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t\t<attribute name="test" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="src" output="target/classes" path="src/main/resources">
+\t\t<attributes>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="src" output="target/test-classes" path="src/test/resources">
+\t\t<attributes>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t\t<attribute name="test" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="src" output="target/annotation" path="target/generated-sources/annotations">
+\t\t<attributes>
+\t\t\t<attribute name="optional" value="true"/>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="src" output="target/test-classes" path="target/generated-test-sources/test-annotations">
+\t\t<attributes>
+\t\t\t<attribute name="optional" value="true"/>
+\t\t\t<attribute name="maven.pomderived" value="true"/>
+\t\t</attributes>
+\t</classpathentry>
+\t<classpathentry kind="output" path="target/classes"/>
+</classpath>"""
+        with open(cp_path, "w") as f:
+            f.write(cp_content)
+        self.logger.log(f"Wrote .classpath to {cp_path}", logging.INFO)
+
     @asynccontextmanager
     async def start_server(self) -> AsyncIterator["EclipseJDTLS"]:
-        """
-        Starts the Eclipse JDTLS Language Server, waits for the server to be ready and yields the LanguageServer instance.
-
-        Usage:
-        ```
-        async with lsp.start_server():
-            # LanguageServer has been initialized and ready to serve requests
-            await lsp.request_definition(...)
-            await lsp.request_references(...)
-            # Shutdown the LanguageServer on exit from scope
-        # LanguageServer has been shutdown
-        ```
-        """
+        self._ensure_classpath_file()
 
         async def register_capability_handler(params):
             assert "registrations" in params
@@ -334,16 +515,19 @@ class EclipseJDTLS(LanguageServer):
                     ]
                     self.completions_available.set()
                 if registration["method"] == "workspace/executeCommand":
-                    if "java.intellicode.enable" in registration["registerOptions"]["commands"]:
+                    if (
+                        "java.intellicode.enable"
+                        in registration["registerOptions"]["commands"]
+                    ):
                         self.intellicode_enable_command_available.set()
             return
 
         async def lang_status_handler(params):
-            # TODO: Should we wait for
-            # server -> client: {'jsonrpc': '2.0', 'method': 'language/status', 'params': {'type': 'ProjectStatus', 'message': 'OK'}}
-            # Before proceeding?
+            # print(f"LSP status: {params}")
             if params["type"] == "ServiceReady" and params["message"] == "ServiceReady":
                 self.service_ready_event.set()
+            if params["type"] == "ProjectStatus" and params["message"] == "OK":
+                self.project_ready_event.set()
 
         async def execute_client_command_handler(params):
             assert params["command"] == "_java.reloadBundles.command"
@@ -351,18 +535,40 @@ class EclipseJDTLS(LanguageServer):
             return []
 
         async def window_log_message(msg):
-            self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
+            self.logger.log(f"LSP window/logMessage: {msg}", logging.INFO)
 
         async def do_nothing(params):
             return
 
+        async def show_progress(params):
+            self.logger.log(f"- progress: {params}", logging.INFO)
+
+        async def check_experimental_status(params):
+            self.logger.log(f"- experimental/serverStatus: {params}", logging.INFO)
+            print(f"- experimental/serverStatus: {params}")
+
+        async def publishDiagnostics(params):
+            self.logger.log(f"- textDocument/publishDiagnostics: {params}", logging.INFO)
+
+        async def actionableNotification(params):
+            self.logger.log(f"- language/actionableNotification: {params}", logging.INFO)
+
         self.server.on_request("client/registerCapability", register_capability_handler)
         self.server.on_notification("language/status", lang_status_handler)
         self.server.on_notification("window/logMessage", window_log_message)
-        self.server.on_request("workspace/executeClientCommand", execute_client_command_handler)
-        self.server.on_notification("$/progress", do_nothing)
-        self.server.on_notification("textDocument/publishDiagnostics", do_nothing)
-        self.server.on_notification("language/actionableNotification", do_nothing)
+        self.server.on_request(
+            "workspace/executeClientCommand", execute_client_command_handler
+        )
+        self.server.on_notification("$/progress", show_progress)
+        self.server.on_notification(
+            "textDocument/publishDiagnostics", publishDiagnostics
+        )
+        self.server.on_notification(
+            "language/actionableNotification", actionableNotification
+        )
+        self.server.on_notification(
+            "experimental/serverStatus", check_experimental_status
+        )
 
         async with super().start_server():
             self.logger.log("Starting EclipseJDTLS server process", logging.INFO)
@@ -386,7 +592,9 @@ class EclipseJDTLS(LanguageServer):
 
             await self.intellicode_enable_command_available.wait()
 
-            java_intellisense_members_path = self.runtime_dependency_paths.intellisense_members_path
+            java_intellisense_members_path = (
+                self.runtime_dependency_paths.intellisense_members_path
+            )
             assert os.path.exists(java_intellisense_members_path)
             intellicode_enable_result = await self.server.send.execute_command(
                 {
@@ -396,8 +604,15 @@ class EclipseJDTLS(LanguageServer):
             )
             assert intellicode_enable_result
 
-            # TODO: Add comments about why we wait here, and how this can be optimized
             await self.service_ready_event.wait()
+            try:
+                await asyncio.wait_for(self.project_ready_event.wait(), timeout=60.0)
+                self.logger.log("Project indexing completed", logging.INFO)
+            except asyncio.TimeoutError:
+                self.logger.log(
+                    "Project indexing timed out after 60s, proceeding without full index",
+                    logging.WARNING,
+                )
 
             yield self
 

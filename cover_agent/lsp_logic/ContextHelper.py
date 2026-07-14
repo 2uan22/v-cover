@@ -24,7 +24,7 @@ class ContextHelper:
         async with self._lsp.start_server() as server:
             yield server
 
-    async def find_test_file_context(self, test_file: Path):
+    async def find_test_file_context(self, test_file: str):
         if not self._lsp:
             raise ValueError(
                 "Language server not initialized. Please call start_server() first."
@@ -32,7 +32,7 @@ class ContextHelper:
         context_files = await find_test_file_context(self._args, self._lsp, test_file)
         return context_files
 
-    async def find_all_context(self, file: Path) -> list[tuple[str, str, str, int, int]]:
+    async def find_all_context(self, file: str) -> list[tuple[str, str, str, int, int]]:
         if not self._lsp:
             raise ValueError(
                 "Language server not initialized. Please call start_server() first."
@@ -43,10 +43,10 @@ class ContextHelper:
 
     async def analyze_context(
         self,
-        test_file: Path,
-        context_files: List[Path],
+        test_file: str,
+        context_files: List[str],
         ai_caller: AICaller,
-    ) -> Tuple[Path, List[Path]]:
+    ) -> Tuple[str, List[str], int, int]:
         if not self._lsp:
             raise ValueError(
                 "Language server not initialized. Please call start_server() first."

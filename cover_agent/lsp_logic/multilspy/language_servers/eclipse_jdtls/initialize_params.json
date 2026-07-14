@@ -500,7 +500,7 @@
                 },
                 "configuration": {
                     "checkProjectSettingsExclusions": false,
-                    "updateBuildConfiguration": "interactive",
+                    "updateBuildConfiguration": "disabled",
                     "maven": {
                         "userSettings": null,
                         "globalSettings": null,
@@ -510,8 +510,8 @@
                     "workspaceCacheLimit": 90,
                     "runtimes": [
                         {
-                            "name": "JavaSE-17",
-                            "path": "static/vscode-java/extension/jre/17.0.8.1-linux-x86_64",
+                            "name": "JavaSE-21",
+                            "path": "/usr/lib/jvm/java-21-openjdk",
                             "default": true
                         }
                     ]
